@@ -6,10 +6,11 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.get('/', (req, res) => res.send('Servidor Delta de Pareamento Ativo'));
+app.get('/', (req, res) => res.send('Servidor Delta Avançado Ativo'));
 
-// Armazena usuários ativos: userId -> { ws, username, pairedWith }
+// Armazena usuários ativos: userId -> { ws, username, groupId, friends }
 const clients = new Map();
+let nextGroupId = 1;
 
 wss.on('connection', (ws) => {
     let currentUserId = null;
@@ -24,24 +25,45 @@ wss.on('connection', (ws) => {
                     clients.set(currentUserId, {
                         ws,
                         username: data.username,
-                        pairedWith: null
+                        groupId: null,
+                        friends: new Set()
                     });
                     broadcastUserList();
                     break;
                 }
 
-                case 'pair': {
+                case 'friend_request': {
+                    sendTo(data.targetId, { type: 'friend_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                    break;
+                }
+
+                case 'friend_accept': {
+                    const user = clients.get(currentUserId);
+                    const target = clients.get(String(data.targetId));
+                    if (user && target) {
+                        user.friends.add(String(data.targetId));
+                        target.friends.add(currentUserId);
+                        sendTo(currentUserId, { type: 'chat', sender: 'Sistema', message: `Você e ${target.username} agora são amigos!` });
+                        sendTo(data.targetId, { type: 'chat', sender: 'Sistema', message: `Você e ${user.username} agora são amigos!` });
+                        broadcastUserList(); // Atualiza a UI para mostrar quem é amigo
+                    }
+                    break;
+                }
+
+                case 'pair': { // Inicia um grupo ou entra em um 1v1
                     const targetId = String(data.targetId);
                     const user = clients.get(currentUserId);
                     const target = clients.get(targetId);
 
-                    if (user && target && !user.pairedWith && !target.pairedWith) {
-                        user.pairedWith = targetId;
-                        target.pairedWith = currentUserId;
+                    if (user && target) {
+                        let groupId = user.groupId || target.groupId;
+                        if (!groupId) {
+                            groupId = `group_${nextGroupId++}`;
+                        }
+                        user.groupId = groupId;
+                        target.groupId = groupId;
 
-                        sendTo(currentUserId, { type: 'paired', targetId, targetName: target.username });
-                        sendTo(targetId, { type: 'paired', targetId: currentUserId, targetName: user.username });
-
+                        sendToGroup(groupId, { type: 'paired', groupId });
                         broadcastUserList();
                     }
                     break;
@@ -49,16 +71,11 @@ wss.on('connection', (ws) => {
 
                 case 'unpair': {
                     const user = clients.get(currentUserId);
-                    if (user && user.pairedWith) {
-                        const targetId = user.pairedWith;
-                        const target = clients.get(targetId);
-
-                        user.pairedWith = null;
-                        if (target) target.pairedWith = null;
-
+                    if (user && user.groupId) {
+                        const oldGroup = user.groupId;
+                        user.groupId = null;
                         sendTo(currentUserId, { type: 'unpaired' });
-                        if (targetId) sendTo(targetId, { type: 'unpaired' });
-
+                        sendToGroup(oldGroup, { type: 'chat', sender: 'Sistema', message: `${user.username} saiu do grupo.` });
                         broadcastUserList();
                     }
                     break;
@@ -66,7 +83,95 @@ wss.on('connection', (ws) => {
 
                 case 'chat': {
                     const user = clients.get(currentUserId);
-                    if (user && user.pairedWith) {
+                    if (user && user.groupId) {
+                        sendToGroup(user.groupId, { type: 'chat', sender: user.username, message: data.message });
+                    }
+                    break;
+                }
+
+                case 'clone_request': {
+                    sendTo(data.targetId, { type: 'clone_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                    break;
+                }
+
+                case 'clone_accept': {
+                    sendTo(data.targetId, { type: 'clone_start', targetId: currentUserId });
+                    sendTo(currentUserId, { type: 'clone_start', targetId: data.targetId });
+                    break;
+                }
+                
+                case 'clone_cancel_request': {
+                    sendTo(data.targetId, { type: 'clone_cancel_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                    break;
+                }
+
+                case 'clone_cancel_accept': {
+                    sendTo(data.targetId, { type: 'clone_stop', targetId: currentUserId });
+                    sendTo(currentUserId, { type: 'clone_stop', targetId: data.targetId });
+                    break;
+                }
+
+                case 'clone_sync': {
+                    const user = clients.get(currentUserId);
+                    if (user && user.groupId) {
+                        // Manda os dados de movimento só pra quem tá no mesmo grupo (evita lag global)
+                        sendToGroup(user.groupId, Object.assign(data, { fromId: currentUserId }), currentUserId);
+                    }
+                    break;
+                }
+            }
+        } catch (err) {
+            console.error('Erro:', err);
+        }
+    });
+
+    ws.on('close', () => {
+        if (currentUserId) {
+            const user = clients.get(currentUserId);
+            if (user && user.groupId) {
+                sendToGroup(user.groupId, { type: 'chat', sender: 'Sistema', message: `${user.username} desconectou.` });
+            }
+            clients.delete(currentUserId);
+            broadcastUserList();
+        }
+    });
+});
+
+function sendTo(userId, data) {
+    const client = clients.get(String(userId));
+    if (client && client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(data));
+    }
+}
+
+function sendToGroup(groupId, data, excludeId = null) {
+    const payload = JSON.stringify(data);
+    clients.forEach((client, id) => {
+        if (client.groupId === groupId && id !== excludeId && client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(payload);
+        }
+    });
+}
+
+function broadcastUserList() {
+    const userList = [];
+    clients.forEach((val, key) => {
+        userList.push({
+            userId: key,
+            username: val.username,
+            groupId: val.groupId,
+            friends: Array.from(val.friends)
+        });
+    });
+
+    const payload = JSON.stringify({ type: 'user_list', users: userList });
+    clients.forEach((client) => {
+        if (client.ws.readyState === WebSocket.OPEN) client.ws.send(payload);
+    });
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
                         const payload = {
                             type: 'chat',
                             sender: user.username,
