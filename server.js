@@ -49,10 +49,14 @@ wss.on('connection', (ws) => {
                     break;
                 }
 
-                case 'pair': {
-                    const targetId = String(data.targetId);
+                case 'pair_request': {
+                    sendTo(data.targetId, { type: 'pair_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                    break;
+                }
+
+                case 'pair_accept': {
                     const user = clients.get(currentUserId);
-                    const target = clients.get(targetId);
+                    const target = clients.get(String(data.targetId));
 
                     if (user && target) {
                         let groupId = user.groupId || target.groupId;
