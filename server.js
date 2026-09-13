@@ -8,8 +8,8 @@ const wss = new WebSocket.Server({ server });
 
 app.get('/', (req, res) => res.send('Delta Chat & Sync Server Ativo'));
 
-const clients = new Map(); // userId -> { ws, username, currentChat, currentGroup }
-const groups = new Map(); // groupId -> { name, owner, members: [], banned: [] }
+const clients = new Map(); 
+const groups = new Map(); 
 
 wss.on('connection', (ws) => {
     let currentUserId = null;
@@ -25,7 +25,7 @@ wss.on('connection', (ws) => {
                     broadcastUserList();
                     break;
 
-                // --- SISTEMA DE AMIZADES E CONVITES ---
+                // --- SISTEMA DE AMIZADES E 1v1 ---
                 case 'friend_request':
                     sendTo(data.targetId, { type: 'friend_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
                     break;
@@ -76,14 +76,20 @@ wss.on('connection', (ws) => {
                         broadcastToGroup(data.groupId, { type: 'group_msg', sender: 'Sistema', message: `${clients.get(currentUserId).username} entrou no grupo.` });
                     }
                     break;
-                case 'kick_group': // Ban/Kick logic
+                case 'kick_group':
                 case 'ban_group':
                     const mGrp = groups.get(data.groupId);
                     if (mGrp && mGrp.owner === currentUserId) {
                         mGrp.members = mGrp.members.filter(id => id !== data.targetId);
                         if (data.type === 'ban_group') mGrp.banned.push(data.targetId);
-                        sendTo(data.targetId, { type: 'kicked_group', reason: data.type === 'ban_group' ? 'Banido' : 'Expulso' });
-                        clients.get(data.targetId).currentGroup = null;
+                        sendTo(data.targetId, { type: 'kicked_group', reason: data.type === 'ban_group' ? 'Você foi Banido' : 'Você foi Expulso' });
+                        if(clients.has(data.targetId)) clients.get(data.targetId).currentGroup = null;
+                    }
+                    break;
+                case 'unban_group':
+                    const ubGrp = groups.get(data.groupId);
+                    if (ubGrp && ubGrp.owner === currentUserId) {
+                        ubGrp.banned = ubGrp.banned.filter(id => id !== data.targetId);
                     }
                     break;
                 case 'delete_group':
@@ -94,7 +100,7 @@ wss.on('connection', (ws) => {
                     }
                     break;
 
-                // --- MENSAGENS E DADOS ---
+                // --- MENSAGENS, STICKERS E DADOS ---
                 case 'chat_msg':
                     const senderData = clients.get(currentUserId);
                     if (senderData.currentChat) {
@@ -111,19 +117,14 @@ wss.on('connection', (ws) => {
                     sendTo(data.targetId, { type: 'clone_invite', fromId: currentUserId, fromName: clients.get(currentUserId).username });
                     break;
                 case 'clone_accept':
-                    sendTo(data.targetId, { type: 'clone_accepted', fromId: currentUserId });
+                    sendTo(data.targetId, { type: 'clone_accepted', fromId: currentUserId, targetName: clients.get(currentUserId).username });
                     break;
                 case 'clone_cancel':
                     sendTo(data.targetId, { type: 'clone_cancelled' });
                     break;
-                case 'sync_transform': // CFrame e Animações do Clone
+                case 'sync_transform': 
                     if (data.targetId) {
-                        sendTo(data.targetId, { 
-                            type: 'sync_update', 
-                            cframe: data.cframe, 
-                            animationId: data.animationId,
-                            chatBubble: data.chatBubble 
-                        });
+                        sendTo(data.targetId, { type: 'sync_update', cframe: data.cframe, chatBubble: data.chatBubble });
                     }
                     break;
             }
@@ -152,16 +153,12 @@ function sendTo(userId, data) {
 }
 function broadcastToGroup(groupId, data) {
     const gp = groups.get(groupId);
-    if (gp) {
-        gp.members.forEach(memberId => {
-            sendTo(memberId, data);
-        });
-    }
+    if (gp) gp.members.forEach(id => sendTo(id, data));
 }
 function broadcastUserList() {
     const userList = Array.from(clients.entries()).map(([id, val]) => ({ userId: id, username: val.username }));
     const payload = JSON.stringify({ type: 'user_list', users: userList });
-    clients.forEach(client => { if (client.ws.readyState === WebSocket.OPEN) client.ws.send(payload); });
+    clients.forEach(c => { if (c.ws.readyState === WebSocket.OPEN) c.ws.send(payload); });
 }
 
 const PORT = process.env.PORT || 3000;
