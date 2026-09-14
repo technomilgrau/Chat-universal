@@ -8,19 +8,21 @@ local GITHUB_RAW_BASE = "https://raw.githubusercontent.com/technomilgrau/Chat-un
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
--- Gerenciamento de Arquivo Local (Armazenamento Permanente no Celular)
+-- Gerenciamento de Arquivo Local (Armazenamento Permanente no Celular SEPARADO POR CONTA)
 local FOLDER_NAME = "Chat-universal"
-local FILE_PATH = FOLDER_NAME .. "/chat_data.json"
+local FILE_PATH = FOLDER_NAME .. "/chat_data_" .. tostring(LocalPlayer.UserId) .. ".json"
 
 if not isfolder(FOLDER_NAME) then
     makefolder(FOLDER_NAME)
 end
 
 local LocalData = {
-    friends = {}, -- { [userId] = username }
-    chats = {},   -- { [userId] = { {sender = "me/them", type = "text/sticker", content = "...", time = "..."}, ... } }
+    friends = {}, -- { [userId] = { username = "...", displayName = "..." } }
+    chats = {},   -- { [userId] = { {id = "...", sender = "me/them", type = "text/sticker", content = "...", timestamp = 0, isDeleted = false, isEdited = false}, ... } }
     recentStickers = {} -- Max 5
 }
 
@@ -38,6 +40,12 @@ function LoadLocalData()
             if not LocalData.recentStickers then
                 LocalData.recentStickers = {}
             end
+            -- Conversão retroativa caso a estrutura de amigos antiga esteja em string
+            for k, v in pairs(LocalData.friends) do
+                if type(v) == "string" then
+                    LocalData.friends[k] = { username = v, displayName = v }
+                end
+            end
         end
     else
         SaveLocalData()
@@ -46,11 +54,16 @@ end
 
 LoadLocalData()
 
+local function GenerateMessageID()
+    return HttpService:GenerateGUID(false)
+end
+
 -- WebSocket Connection
 local ws = nil
 local activeChatUserId = nil
 local friendRequests = {}
 local presenceStatuses = {} -- [userId] = "online" | "offline" | "digitando..."
+local editingMessageId = nil -- Para controle de edição
 
 -- UI Blueprint Creation
 local ScreenGui = Instance.new("ScreenGui")
@@ -58,6 +71,61 @@ ScreenGui.Name = "ChatUniversalUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+-- BOTÃO MINIMIZADO (O Quadrado com "C")
+local MinimizedBtn = Instance.new("TextButton")
+MinimizedBtn.Name = "MinimizedBtn"
+MinimizedBtn.Size = UDim2.new(0, 50, 0, 50)
+MinimizedBtn.Position = UDim2.new(0.5, -25, 0.5, -25)
+MinimizedBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+MinimizedBtn.Text = "C"
+MinimizedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizedBtn.Font = Enum.Font.GothamBold
+MinimizedBtn.TextSize = 24
+MinimizedBtn.Visible = false
+MinimizedBtn.Active = true
+MinimizedBtn.Draggable = true
+MinimizedBtn.Parent = ScreenGui
+
+local MinimizedCorner = Instance.new("UICorner")
+MinimizedCorner.CornerRadius = UDim.new(0, 16)
+MinimizedCorner.Parent = MinimizedBtn
+
+-- MENU DE CONTEXTO (Editar/Apagar)
+local ContextMenu = Instance.new("Frame")
+ContextMenu.Size = UDim2.new(0, 120, 0, 80)
+ContextMenu.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+ContextMenu.Visible = false
+ContextMenu.ZIndex = 100
+ContextMenu.Parent = ScreenGui
+
+local ContextCorner = Instance.new("UICorner")
+ContextCorner.CornerRadius = UDim.new(0, 8)
+ContextCorner.Parent = ContextMenu
+
+local ContextLayout = Instance.new("UIListLayout")
+ContextLayout.Parent = ContextMenu
+
+local EditBtn = Instance.new("TextButton")
+EditBtn.Size = UDim2.new(1, 0, 0.5, 0)
+EditBtn.BackgroundTransparency = 1
+EditBtn.Text = "Editar"
+EditBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+EditBtn.Font = Enum.Font.Gotham
+EditBtn.ZIndex = 101
+EditBtn.Parent = ContextMenu
+
+local DeleteBtn = Instance.new("TextButton")
+DeleteBtn.Size = UDim2.new(1, 0, 0.5, 0)
+DeleteBtn.BackgroundTransparency = 1
+DeleteBtn.Text = "Apagar"
+DeleteBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
+DeleteBtn.Font = Enum.Font.Gotham
+DeleteBtn.ZIndex = 101
+DeleteBtn.Parent = ContextMenu
+
+local contextTargetMsgId = nil
+
+-- FRAME PRINCIPAL
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 340, 0, 520)
@@ -72,6 +140,13 @@ MainFrame.Parent = ScreenGui
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 16)
 MainCorner.Parent = MainFrame
+
+-- Lógica para ocultar menu de contexto se clicar fora
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        ContextMenu.Visible = false
+    end
+end)
 
 -- Top Header
 local Header = Instance.new("Frame")
@@ -91,7 +166,7 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local Subtitle = Instance.new("TextLabel")
-Subtitle.Text = "techno_milgrau"
+Subtitle.Text = LocalPlayer.Name
 Subtitle.Font = Enum.Font.Gotham
 Subtitle.TextSize = 12
 Subtitle.TextColor3 = Color3.fromRGB(140, 140, 150)
@@ -100,6 +175,37 @@ Subtitle.Size = UDim2.new(0, 200, 0, 16)
 Subtitle.BackgroundTransparency = 1
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
 Subtitle.Parent = Header
+
+-- Botão de Minimizar
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 28, 0, 28)
+MinBtn.Position = UDim2.new(1, -76, 0, 16)
+MinBtn.BackgroundTransparency = 1
+MinBtn.Text = "—"
+MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 16
+MinBtn.Parent = Header
+
+MinBtn.MouseButton1Click:Connect(function()
+    local pos = MainFrame.Position
+    local tween = TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0,0,0,0), Position = UDim2.new(pos.X.Scale, pos.X.Offset + 170, pos.Y.Scale, pos.Y.Offset + 260)})
+    tween:Play()
+    tween.Completed:Wait()
+    MainFrame.Visible = false
+    MinimizedBtn.Position = UDim2.new(pos.X.Scale, pos.X.Offset + 145, pos.Y.Scale, pos.Y.Offset + 235)
+    MinimizedBtn.Visible = true
+end)
+
+MinimizedBtn.MouseButton1Click:Connect(function()
+    local pos = MinimizedBtn.Position
+    MinimizedBtn.Visible = false
+    MainFrame.Position = UDim2.new(pos.X.Scale, pos.X.Offset - 145, pos.Y.Scale, pos.Y.Offset - 235)
+    MainFrame.Size = UDim2.new(0,0,0,0)
+    MainFrame.Visible = true
+    local tween = TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 340, 0, 520)})
+    tween:Play()
+end)
 
 -- Botão de Notificações (Sino Emoji)
 local BellBtn = Instance.new("TextButton")
@@ -183,6 +289,10 @@ FriendsScroll.Parent = MessagesTab
 local FriendsLayout = Instance.new("UIListLayout")
 FriendsLayout.Padding = UDim.new(0, 8)
 FriendsLayout.Parent = FriendsScroll
+
+FriendsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    FriendsScroll.CanvasSize = UDim2.new(0, 0, 0, FriendsLayout.AbsoluteContentSize.Y)
+end)
 
 -- JANELA DE NOTIFICAÇÕES (POPUP)
 local NotificationsFrame = Instance.new("Frame")
@@ -288,8 +398,12 @@ MessagesScroll.Parent = ChatWindow
 
 local MessagesLayout = Instance.new("UIListLayout")
 MessagesLayout.Padding = UDim.new(0, 8)
-MessagesLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+MessagesLayout.VerticalAlignment = Enum.VerticalAlignment.Top -- Mudado para Top para o header ficar no topo
 MessagesLayout.Parent = MessagesScroll
+
+MessagesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    MessagesScroll.CanvasSize = UDim2.new(0, 0, 0, MessagesLayout.AbsoluteContentSize.Y + 20)
+end)
 
 -- Input do Chat & Botão de Figurinhas
 local ChatInputFrame = Instance.new("Frame")
@@ -339,7 +453,7 @@ SendBtn.Parent = ChatInputFrame
 -- PAINEL DE STICKERS (Aba estilo TikTok)
 local StickerPanel = Instance.new("Frame")
 StickerPanel.Size = UDim2.new(1, 0, 0, 250)
-StickerPanel.Position = UDim2.new(0, 0, 1, -298) -- Sobe e fica logo acima do input de texto
+StickerPanel.Position = UDim2.new(0, 0, 1, -298)
 StickerPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
 StickerPanel.Visible = false
 StickerPanel.ZIndex = 22
@@ -456,7 +570,7 @@ end
 local function SendSticker(filename)
     if activeChatUserId and ws then
         local idStr = tostring(activeChatUserId)
-        local newMsg = {sender = "me", type = "sticker", content = filename}
+        local newMsg = {id = GenerateMessageID(), sender = "me", type = "sticker", content = filename, timestamp = os.time(), isDeleted = false, isEdited = false}
 
         if not LocalData.chats[idStr] then LocalData.chats[idStr] = {} end
         table.insert(LocalData.chats[idStr], newMsg)
@@ -467,8 +581,11 @@ local function SendSticker(filename)
         ws:Send(HttpService:JSONEncode({
             type = "send_message",
             toUserId = idStr,
+            msgId = newMsg.id,
             msgType = "sticker",
-            content = filename
+            content = filename,
+            fromName = LocalPlayer.Name,
+            fromDisplayName = LocalPlayer.DisplayName
         }))
     end
 end
@@ -563,12 +680,17 @@ Tab2Btn.TextColor3 = Color3.fromRGB(120, 120, 130)
 Tab2Btn.Parent = TabBar
 
 -- FUNÇÕES DA UI
-local function UpdateFriendsList()
+local function FormatTime(timestamp)
+    local date = os.date("*t", timestamp)
+    return string.format("%02d/%02d/%04d %02d:%02d", date.day, date.month, date.year, date.hour, date.min)
+end
+
+function UpdateFriendsList()
     for _, child in pairs(FriendsScroll:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
     
-    for id, name in pairs(LocalData.friends) do
+    for id, friendData in pairs(LocalData.friends) do
         local FCard = Instance.new("Frame")
         FCard.Size = UDim2.new(1, 0, 0, 50)
         FCard.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
@@ -590,7 +712,7 @@ local function UpdateFriendsList()
         FAvatarCorner.Parent = FAvatar
 
         local FName = Instance.new("TextLabel")
-        FName.Text = name
+        FName.Text = friendData.displayName or friendData.username or "Desconhecido"
         FName.Font = Enum.Font.GothamBold
         FName.TextSize = 13
         FName.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -616,8 +738,9 @@ local function UpdateFriendsList()
 
         OpenChatBtn.MouseButton1Click:Connect(function()
             activeChatUserId = id
-            ChatName.Text = name
+            ChatName.Text = friendData.displayName or friendData.username
             ChatAvatar.Image = FAvatar.Image
+            ChatStatus.Text = presenceStatuses[id] or "offline"
             
             ChatWindow.Position = UDim2.new(1, 0, 0, 0)
             local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)})
@@ -628,7 +751,7 @@ local function UpdateFriendsList()
     end
 end
 
-local function UpdateNotifications()
+function UpdateNotifications()
     for _, child in pairs(NotifScroll:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
@@ -662,11 +785,14 @@ local function UpdateNotifications()
             ReqAvatarCorner.CornerRadius = UDim.new(1, 0)
             ReqAvatarCorner.Parent = ReqAvatar
             
+            local nameToShow = req.displayName
+            if not nameToShow or nameToShow == "" then nameToShow = req.username end
+
             local ReqName = Instance.new("TextLabel")
             ReqName.Size = UDim2.new(0, 100, 0, 18)
             ReqName.Position = UDim2.new(0, 52, 0, 16)
             ReqName.BackgroundTransparency = 1
-            ReqName.Text = req.username
+            ReqName.Text = nameToShow or "Desconhecido"
             ReqName.Font = Enum.Font.GothamBold
             ReqName.TextSize = 13
             ReqName.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -706,10 +832,11 @@ local function UpdateNotifications()
                     ws:Send(HttpService:JSONEncode({
                         type = "accept_friend_request",
                         senderId = tostring(req.userId),
-                        username = LocalPlayer.Name
+                        username = LocalPlayer.Name,
+                        displayName = LocalPlayer.DisplayName
                     }))
                 end
-                LocalData.friends[tostring(req.userId)] = req.username
+                LocalData.friends[tostring(req.userId)] = { username = req.username, displayName = req.displayName }
                 SaveLocalData()
                 
                 table.remove(friendRequests, i)
@@ -758,7 +885,7 @@ function RenderSearchResults(results)
         AvatarCorner.Parent = Avatar
 
         local Name = Instance.new("TextLabel")
-        Name.Text = user.username
+        Name.Text = user.displayName or user.username
         Name.Font = Enum.Font.GothamBold
         Name.TextSize = 13
         Name.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -787,7 +914,8 @@ function RenderSearchResults(results)
                 ws:Send(HttpService:JSONEncode({
                     type = "send_friend_request",
                     targetUserId = tostring(user.userId),
-                    fromName = LocalPlayer.Name
+                    fromName = LocalPlayer.Name,
+                    fromDisplayName = LocalPlayer.DisplayName
                 }))
                 AddBtn.Text = "Enviado!"
                 AddBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
@@ -798,14 +926,147 @@ end
 
 function RenderMessages(userId)
     for _, child in pairs(MessagesScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
+        if child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
     end
     
     local chatHistory = LocalData.chats[tostring(userId)] or {}
-    for _, msg in ipairs(chatHistory) do
+    local friendInfo = LocalData.friends[tostring(userId)] or {username="Desconhecido", displayName="Desconhecido"}
+    local displayName = friendInfo.displayName or friendInfo.username
+
+    -- 1. CABEÇALHO DO CHAT (Início da Conversa)
+    local IntroFrame = Instance.new("Frame")
+    IntroFrame.Size = UDim2.new(1, 0, 0, 220)
+    IntroFrame.BackgroundTransparency = 1
+    IntroFrame.LayoutOrder = -1
+    IntroFrame.Parent = MessagesScroll
+
+    local IntroAvatar = Instance.new("ImageLabel")
+    IntroAvatar.Size = UDim2.new(0, 80, 0, 80)
+    IntroAvatar.Position = UDim2.new(0.5, -40, 0, 20)
+    IntroAvatar.BackgroundTransparency = 1
+    IntroAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
+    IntroAvatar.Parent = IntroFrame
+
+    local IntroAvCorner = Instance.new("UICorner")
+    IntroAvCorner.CornerRadius = UDim.new(1, 0)
+    IntroAvCorner.Parent = IntroAvatar
+
+    local IntroName = Instance.new("TextLabel")
+    IntroName.Size = UDim2.new(1, 0, 0, 20)
+    IntroName.Position = UDim2.new(0, 0, 0, 110)
+    IntroName.BackgroundTransparency = 1
+    IntroName.Text = displayName
+    IntroName.Font = Enum.Font.GothamBold
+    IntroName.TextSize = 20
+    IntroName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    IntroName.Parent = IntroFrame
+
+    local IntroUser = Instance.new("TextLabel")
+    IntroUser.Size = UDim2.new(1, 0, 0, 15)
+    IntroUser.Position = UDim2.new(0, 0, 0, 132)
+    IntroUser.BackgroundTransparency = 1
+    IntroUser.Text = friendInfo.username
+    IntroUser.Font = Enum.Font.Gotham
+    IntroUser.TextSize = 14
+    IntroUser.TextColor3 = Color3.fromRGB(150, 150, 160)
+    IntroUser.Parent = IntroFrame
+
+    local IntroText = Instance.new("TextLabel")
+    IntroText.Size = UDim2.new(1, -20, 0, 20)
+    IntroText.Position = UDim2.new(0, 10, 0, 155)
+    IntroText.BackgroundTransparency = 1
+    IntroText.Text = "Foi aqui que a sua inesquecível conversa com " .. displayName .. " começou."
+    IntroText.Font = Enum.Font.Gotham
+    IntroText.TextSize = 12
+    IntroText.TextColor3 = Color3.fromRGB(180, 180, 190)
+    IntroText.TextWrapped = true
+    IntroText.Parent = IntroFrame
+
+    local UnfriendBtn = Instance.new("TextButton")
+    UnfriendBtn.Size = UDim2.new(0, 110, 0, 30)
+    UnfriendBtn.Position = UDim2.new(0.5, -115, 0, 185)
+    UnfriendBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    UnfriendBtn.Text = "Desfazer amizade"
+    UnfriendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    UnfriendBtn.Font = Enum.Font.GothamBold
+    UnfriendBtn.TextSize = 11
+    UnfriendBtn.Parent = IntroFrame
+
+    local UnfCorner = Instance.new("UICorner")
+    UnfCorner.CornerRadius = UDim.new(0, 8)
+    UnfCorner.Parent = UnfriendBtn
+
+    local BlockBtn = Instance.new("TextButton")
+    BlockBtn.Size = UDim2.new(0, 110, 0, 30)
+    BlockBtn.Position = UDim2.new(0.5, 5, 0, 185)
+    BlockBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    BlockBtn.Text = "Bloquear"
+    BlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    BlockBtn.Font = Enum.Font.GothamBold
+    BlockBtn.TextSize = 11
+    BlockBtn.Parent = IntroFrame
+
+    local BlkCorner = Instance.new("UICorner")
+    BlkCorner.CornerRadius = UDim.new(0, 8)
+    BlkCorner.Parent = BlockBtn
+
+    UnfriendBtn.MouseButton1Click:Connect(function()
+        if ws then
+            ws:Send(HttpService:JSONEncode({
+                type = "unfriend",
+                targetUserId = tostring(userId)
+            }))
+        end
+        LocalData.friends[tostring(userId)] = nil
+        LocalData.chats[tostring(userId)] = nil
+        SaveLocalData()
+        
+        local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)})
+        tween:Play()
+        activeChatUserId = nil
+        UpdateFriendsList()
+    end)
+
+    -- 2. RENDERIZAR MENSAGENS E DATAS
+    local lastTimestamp = 0
+
+    for idx, msg in ipairs(chatHistory) do
+        msg.timestamp = msg.timestamp or 0
+
+        -- Checar diferença de 10 min (600 segundos) para mostrar Data/Hora
+        if msg.timestamp - lastTimestamp > 600 and msg.timestamp > 0 then
+            local TimeFrame = Instance.new("TextLabel")
+            TimeFrame.Size = UDim2.new(1, 0, 0, 20)
+            TimeFrame.BackgroundTransparency = 1
+            TimeFrame.Text = FormatTime(msg.timestamp)
+            TimeFrame.Font = Enum.Font.Gotham
+            TimeFrame.TextSize = 10
+            TimeFrame.TextColor3 = Color3.fromRGB(120, 120, 130)
+            TimeFrame.LayoutOrder = idx * 2
+            TimeFrame.Parent = MessagesScroll
+            lastTimestamp = msg.timestamp
+        end
+
         local MsgFrame = Instance.new("Frame")
         MsgFrame.BackgroundTransparency = 1
+        MsgFrame.LayoutOrder = (idx * 2) + 1
         MsgFrame.Parent = MessagesScroll
+        
+        local ClickBtn = Instance.new("TextButton")
+        ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+        ClickBtn.BackgroundTransparency = 1
+        ClickBtn.Text = ""
+        ClickBtn.ZIndex = 25
+        ClickBtn.Parent = MsgFrame
+
+        ClickBtn.MouseButton1Click:Connect(function()
+            if msg.sender == "me" and not msg.isDeleted then
+                contextTargetMsgId = msg.id
+                EditBtn.Visible = (msg.type == "text")
+                ContextMenu.Position = UDim2.new(0, Mouse.X, 0, Mouse.Y)
+                ContextMenu.Visible = true
+            end
+        end)
         
         if msg.type == "sticker" then
             MsgFrame.Size = UDim2.new(1, 0, 0, 100)
@@ -825,39 +1086,101 @@ function RenderMessages(userId)
             end
             StickerImg.Parent = MsgFrame
             
-            task.spawn(function()
-                StickerImg.Image = GetStickerAsset(msg.content)
-            end)
+            if msg.isDeleted then
+                local DelTxt = Instance.new("TextLabel")
+                DelTxt.Size = UDim2.new(1, 0, 1, 0)
+                DelTxt.BackgroundTransparency = 0.5
+                DelTxt.BackgroundColor3 = Color3.fromRGB(20,20,25)
+                DelTxt.Text = "🚫 Mensagem apagada"
+                DelTxt.TextColor3 = Color3.fromRGB(150,150,150)
+                DelTxt.Font = Enum.Font.Gotham
+                DelTxt.TextSize = 11
+                DelTxt.Parent = StickerImg
+            else
+                task.spawn(function()
+                    StickerImg.Image = GetStickerAsset(msg.content)
+                end)
+            end
         else
             -- Renderização Textual Normal
             MsgFrame.Size = UDim2.new(1, 0, 0, 30)
             local Txt = Instance.new("TextLabel")
-            Txt.Text = msg.content
+            
+            local displayText = msg.content
+            if msg.isDeleted then
+                displayText = "🚫 Mensagem apagada"
+            elseif msg.isEdited then
+                displayText = msg.content .. " (editado)"
+            end
+
+            Txt.Text = displayText
             Txt.Font = Enum.Font.Gotham
             Txt.TextSize = 13
-            Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
-            Txt.BackgroundTransparency = 0
+            Txt.TextColor3 = msg.isDeleted and Color3.fromRGB(150,150,150) or Color3.fromRGB(255, 255, 255)
+            Txt.BackgroundTransparency = msg.isDeleted and 1 or 0
             
             local TxtCorner = Instance.new("UICorner")
             TxtCorner.CornerRadius = UDim.new(0, 8)
             TxtCorner.Parent = Txt
             
-            local textWidth = string.len(msg.content) * 7 + 20
-            textWidth = math.clamp(textWidth, 40, 220)
+            local textWidth = string.len(displayText) * 7 + 20
+            textWidth = math.clamp(textWidth, 40, 240)
             Txt.Size = UDim2.new(0, textWidth, 1, 0)
             
             if msg.sender == "me" then
-                Txt.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+                Txt.BackgroundColor3 = msg.isDeleted and Color3.fromRGB(0,0,0) or Color3.fromRGB(0, 140, 255)
                 Txt.Position = UDim2.new(1, -textWidth, 0, 0)
             else
-                Txt.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+                Txt.BackgroundColor3 = msg.isDeleted and Color3.fromRGB(0,0,0) or Color3.fromRGB(40, 40, 50)
                 Txt.Position = UDim2.new(0, 0, 0, 0)
             end
             Txt.Parent = MsgFrame
         end
     end
+    -- Rolar para baixo apenas se encher a tela
+    task.wait(0.05)
     MessagesScroll.CanvasPosition = Vector2.new(0, 99999)
 end
+
+-- EVENTOS DOS BOTÕES DE CONTEXTO (Editar / Apagar)
+DeleteBtn.MouseButton1Click:Connect(function()
+    if activeChatUserId and contextTargetMsgId then
+        local chat = LocalData.chats[tostring(activeChatUserId)]
+        for _, m in ipairs(chat) do
+            if m.id == contextTargetMsgId then
+                m.isDeleted = true
+                m.content = ""
+                break
+            end
+        end
+        SaveLocalData()
+        RenderMessages(activeChatUserId)
+        
+        if ws then
+            ws:Send(HttpService:JSONEncode({
+                type = "delete_message",
+                toUserId = tostring(activeChatUserId),
+                msgId = contextTargetMsgId
+            }))
+        end
+    end
+    ContextMenu.Visible = false
+end)
+
+EditBtn.MouseButton1Click:Connect(function()
+    if activeChatUserId and contextTargetMsgId then
+        local chat = LocalData.chats[tostring(activeChatUserId)]
+        for _, m in ipairs(chat) do
+            if m.id == contextTargetMsgId and m.type == "text" then
+                ChatTextBox.Text = m.content
+                editingMessageId = m.id
+                SendBtn.Text = "✓"
+                break
+            end
+        end
+    end
+    ContextMenu.Visible = false
+end)
 
 -- EVENTOS DE CLIQUE E NAVEGAÇÃO
 Tab1Btn.MouseButton1Click:Connect(function()
@@ -888,29 +1211,56 @@ BackBtn.MouseButton1Click:Connect(function()
     tween:Play()
     StickerPanel.Visible = false
     activeChatUserId = nil
+    editingMessageId = nil
+    SendBtn.Text = "➔"
 end)
 
 SendBtn.MouseButton1Click:Connect(function()
     if activeChatUserId and ChatTextBox.Text ~= "" and ws then
         local msgText = ChatTextBox.Text
         ChatTextBox.Text = ""
-        
-        local newMsg = {sender = "me", type = "text", content = msgText}
         local idStr = tostring(activeChatUserId)
         
-        if not LocalData.chats[idStr] then
-            LocalData.chats[idStr] = {}
+        if editingMessageId then
+            -- Lógica de Edição
+            local chat = LocalData.chats[idStr]
+            for _, m in ipairs(chat) do
+                if m.id == editingMessageId then
+                    m.content = msgText
+                    m.isEdited = true
+                    break
+                end
+            end
+            ws:Send(HttpService:JSONEncode({
+                type = "edit_message",
+                toUserId = idStr,
+                msgId = editingMessageId,
+                content = msgText
+            }))
+            editingMessageId = nil
+            SendBtn.Text = "➔"
+        else
+            -- Lógica Normal de Envio
+            local newMsg = {id = GenerateMessageID(), sender = "me", type = "text", content = msgText, timestamp = os.time(), isDeleted = false, isEdited = false}
+            
+            if not LocalData.chats[idStr] then
+                LocalData.chats[idStr] = {}
+            end
+            table.insert(LocalData.chats[idStr], newMsg)
+            
+            ws:Send(HttpService:JSONEncode({
+                type = "send_message",
+                toUserId = idStr,
+                msgId = newMsg.id,
+                msgType = "text",
+                content = msgText,
+                fromName = LocalPlayer.Name,
+                fromDisplayName = LocalPlayer.DisplayName
+            }))
         end
-        table.insert(LocalData.chats[idStr], newMsg)
+        
         SaveLocalData()
         RenderMessages(activeChatUserId)
-        
-        ws:Send(HttpService:JSONEncode({
-            type = "send_message",
-            toUserId = idStr,
-            msgType = "text",
-            content = msgText
-        }))
     end
 end)
 
@@ -938,11 +1288,12 @@ local function ConnectWebSocket()
 
         if success then
             ws = connection
-            -- Registrar Usuário no Servidor
+            -- Registrar Usuário no Servidor (agora envia DisplayName e Name reais)
             ws:Send(HttpService:JSONEncode({
                 type = "register",
                 userId = tostring(LocalPlayer.UserId),
-                username = LocalPlayer.Name
+                username = LocalPlayer.Name,
+                displayName = LocalPlayer.DisplayName
             }))
 
             ws.OnMessage:Connect(function(msg)
@@ -953,7 +1304,8 @@ local function ConnectWebSocket()
                 elseif data.type == "new_friend_request" then
                     table.insert(friendRequests, {
                         userId = data.request.fromId,
-                        username = data.request.fromName
+                        username = data.request.fromName,
+                        displayName = data.request.fromDisplayName
                     })
                     UpdateNotifications()
                 elseif data.type == "friend_requests" then
@@ -961,12 +1313,13 @@ local function ConnectWebSocket()
                     for _, req in ipairs(data.requests) do
                         table.insert(friendRequests, {
                             userId = req.fromId,
-                            username = req.fromName
+                            username = req.fromName,
+                            displayName = req.fromDisplayName
                         })
                     end
                     UpdateNotifications()
                 elseif data.type == "friend_accepted" then
-                    LocalData.friends[tostring(data.userId)] = data.username
+                    LocalData.friends[tostring(data.userId)] = { username = data.username, displayName = data.displayName }
                     SaveLocalData()
                     UpdateFriendsList()
                 elseif data.type == "private_message" then
@@ -975,13 +1328,54 @@ local function ConnectWebSocket()
                         LocalData.chats[idStr] = {}
                     end
                     table.insert(LocalData.chats[idStr], {
+                        id = data.msgId or GenerateMessageID(),
                         sender = "them", 
                         type = data.msgType or "text", 
-                        content = data.content
+                        content = data.content,
+                        timestamp = os.time(),
+                        isDeleted = false,
+                        isEdited = false
                     })
                     SaveLocalData()
                     if activeChatUserId == idStr then
                         RenderMessages(idStr)
+                    end
+                elseif data.type == "message_deleted" then
+                    local idStr = tostring(data.fromUserId)
+                    if LocalData.chats[idStr] then
+                        for _, m in ipairs(LocalData.chats[idStr]) do
+                            if m.id == data.msgId then
+                                m.isDeleted = true
+                                m.content = ""
+                                break
+                            end
+                        end
+                        SaveLocalData()
+                        if activeChatUserId == idStr then RenderMessages(idStr) end
+                    end
+                elseif data.type == "message_edited" then
+                    local idStr = tostring(data.fromUserId)
+                    if LocalData.chats[idStr] then
+                        for _, m in ipairs(LocalData.chats[idStr]) do
+                            if m.id == data.msgId then
+                                m.content = data.content
+                                m.isEdited = true
+                                break
+                            end
+                        end
+                        SaveLocalData()
+                        if activeChatUserId == idStr then RenderMessages(idStr) end
+                    end
+                elseif data.type == "unfriended" then
+                    local idStr = tostring(data.fromUserId)
+                    LocalData.friends[idStr] = nil
+                    LocalData.chats[idStr] = nil
+                    SaveLocalData()
+                    UpdateFriendsList()
+                    if activeChatUserId == idStr then
+                        local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3), {Position = UDim2.new(1, 0, 0, 0)})
+                        tween:Play()
+                        activeChatUserId = nil
                     end
                 elseif data.type == "presence_update" then
                     presenceStatuses[tostring(data.userId)] = data.status
