@@ -83,6 +83,7 @@ Title.TextSize = 20
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Position = UDim2.new(0, 16, 0, 12)
 Title.Size = UDim2.new(0, 200, 0, 22)
+Title.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
@@ -93,16 +94,17 @@ Subtitle.TextSize = 12
 Subtitle.TextColor3 = Color3.fromRGB(140, 140, 150)
 Subtitle.Position = UDim2.new(0, 16, 0, 34)
 Subtitle.Size = UDim2.new(0, 200, 0, 16)
+Subtitle.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
 Subtitle.Parent = Header
 
--- Botão de Notificações (Sino)
-local BellBtn = Instance.new("ImageButton")
+-- Botão de Notificações (Sino Emoji)
+local BellBtn = Instance.new("TextButton")
 BellBtn.Size = UDim2.new(0, 28, 0, 28)
 BellBtn.Position = UDim2.new(1, -44, 0, 16)
 BellBtn.BackgroundTransparency = 1
-BellBtn.Image = "rbxassetid://6031081531" -- Ícone de sino
-BellBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+BellBtn.Text = "🔔"
+BellBtn.TextSize = 20
 BellBtn.Parent = Header
 
 local BellBadge = Instance.new("TextLabel")
@@ -203,18 +205,28 @@ local NotifLayout = Instance.new("UIListLayout")
 NotifLayout.Padding = UDim.new(0, 6)
 NotifLayout.Parent = NotifScroll
 
--- JANELA DE CHAT PRIVADO (Estilo Instagram/TikTok)
+local EmptyNotifText = Instance.new("TextLabel")
+EmptyNotifText.Size = UDim2.new(1, 0, 1, 0)
+EmptyNotifText.BackgroundTransparency = 1
+EmptyNotifText.Text = "Notificações vazias"
+EmptyNotifText.TextColor3 = Color3.fromRGB(150, 150, 160)
+EmptyNotifText.Font = Enum.Font.Gotham
+EmptyNotifText.TextSize = 13
+EmptyNotifText.ZIndex = 12
+EmptyNotifText.Parent = NotifScroll
+
+-- JANELA DE CHAT PRIVADO
 local ChatWindow = Instance.new("Frame")
 ChatWindow.Size = UDim2.new(1, 0, 1, 0)
-ChatWindow.Position = UDim2.new(1, 0, 0, 0) -- Fora da tela inicialmente
+ChatWindow.Position = UDim2.new(1, 0, 0, 0) -- Fora da tela
 ChatWindow.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-ChatWindow.ZIndex = 5
+ChatWindow.ZIndex = 20
 ChatWindow.Parent = MainFrame
 
 local ChatHeader = Instance.new("Frame")
 ChatHeader.Size = UDim2.new(1, 0, 0, 55)
 ChatHeader.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
-ChatHeader.ZIndex = 6
+ChatHeader.ZIndex = 21
 ChatHeader.Parent = ChatWindow
 
 local BackBtn = Instance.new("TextButton")
@@ -225,14 +237,15 @@ BackBtn.Text = "<"
 BackBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 BackBtn.Font = Enum.Font.GothamBold
 BackBtn.TextSize = 20
-BackBtn.ZIndex = 6
+BackBtn.ZIndex = 21
 BackBtn.Parent = ChatHeader
 
 local ChatAvatar = Instance.new("ImageLabel")
 ChatAvatar.Size = UDim2.new(0, 36, 0, 36)
 ChatAvatar.Position = UDim2.new(0, 45, 0, 9)
 ChatAvatar.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-ChatAvatar.ZIndex = 6
+ChatAvatar.BackgroundTransparency = 1
+ChatAvatar.ZIndex = 21
 ChatAvatar.Parent = ChatHeader
 
 local ChatAvatarCorner = Instance.new("UICorner")
@@ -245,8 +258,9 @@ ChatName.Position = UDim2.new(0, 90, 0, 10)
 ChatName.Font = Enum.Font.GothamBold
 ChatName.TextSize = 14
 ChatName.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChatName.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
 ChatName.TextXAlignment = Enum.TextXAlignment.Left
-ChatName.ZIndex = 6
+ChatName.ZIndex = 21
 ChatName.Parent = ChatHeader
 
 local ChatStatus = Instance.new("TextLabel")
@@ -256,8 +270,9 @@ ChatStatus.Font = Enum.Font.Gotham
 ChatStatus.TextSize = 11
 ChatStatus.TextColor3 = Color3.fromRGB(140, 140, 150)
 ChatStatus.Text = "offline"
+ChatStatus.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
 ChatStatus.TextXAlignment = Enum.TextXAlignment.Left
-ChatStatus.ZIndex = 6
+ChatStatus.ZIndex = 21
 ChatStatus.Parent = ChatHeader
 
 local MessagesScroll = Instance.new("ScrollingFrame")
@@ -265,12 +280,12 @@ MessagesScroll.Size = UDim2.new(1, -20, 1, -115)
 MessagesScroll.Position = UDim2.new(0, 10, 0, 60)
 MessagesScroll.BackgroundTransparency = 1
 MessagesScroll.ScrollBarThickness = 2
-MessagesScroll.ZIndex = 5
+MessagesScroll.ZIndex = 20
 MessagesScroll.Parent = ChatWindow
 
 local MessagesLayout = Instance.new("UIListLayout")
 MessagesLayout.Padding = UDim.new(0, 8)
-MessagesLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+MessagesLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 MessagesLayout.Parent = MessagesScroll
 
 -- Input do Chat & Botão de Figurinhas
@@ -278,7 +293,7 @@ local ChatInputFrame = Instance.new("Frame")
 ChatInputFrame.Size = UDim2.new(1, -20, 0, 42)
 ChatInputFrame.Position = UDim2.new(0, 10, 1, -48)
 ChatInputFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
-ChatInputFrame.ZIndex = 6
+ChatInputFrame.ZIndex = 21
 ChatInputFrame.Parent = ChatWindow
 
 local InputCorner = Instance.new("UICorner")
@@ -291,7 +306,7 @@ EmojiBtn.Position = UDim2.new(0, 8, 0, 6)
 EmojiBtn.BackgroundTransparency = 1
 EmojiBtn.Text = "😀"
 EmojiBtn.TextSize = 18
-EmojiBtn.ZIndex = 6
+EmojiBtn.ZIndex = 21
 EmojiBtn.Parent = ChatInputFrame
 
 local ChatTextBox = Instance.new("TextBox")
@@ -303,8 +318,7 @@ ChatTextBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 ChatTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ChatTextBox.Font = Enum.Font.Gotham
 ChatTextBox.TextSize = 13
-ChatTextBox.Text = ""
-ChatTextBox.ZIndex = 6
+ChatTextBox.ZIndex = 21
 ChatTextBox.Parent = ChatInputFrame
 
 local SendBtn = Instance.new("TextButton")
@@ -315,58 +329,10 @@ SendBtn.Text = "➔"
 SendBtn.TextColor3 = Color3.fromRGB(0, 140, 255)
 SendBtn.Font = Enum.Font.GothamBold
 SendBtn.TextSize = 16
-SendBtn.ZIndex = 6
+SendBtn.ZIndex = 21
 SendBtn.Parent = ChatInputFrame
 
--- PAINEL DE FIGURINHAS (DRAWER / SLIDE UP)
-local StickerDrawer = Instance.new("Frame")
-StickerDrawer.Size = UDim2.new(1, 0, 0, 210)
-StickerDrawer.Position = UDim2.new(0, 0, 1, 0) -- Escondido embaixo
-StickerDrawer.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-StickerDrawer.ZIndex = 7
-StickerDrawer.Parent = ChatWindow
-
-local DrawerCorner = Instance.new("UICorner")
-DrawerCorner.CornerRadius = UDim.new(0, 16)
-DrawerCorner.Parent = StickerDrawer
-
-local RecentLabel = Instance.new("TextLabel")
-RecentLabel.Text = "Usado recentemente"
-RecentLabel.Font = Enum.Font.GothamBold
-RecentLabel.TextSize = 11
-RecentLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
-RecentLabel.Position = UDim2.new(0, 12, 0, 8)
-RecentLabel.Size = UDim2.new(0, 200, 0, 14)
-RecentLabel.TextXAlignment = Enum.TextXAlignment.Left
-RecentLabel.ZIndex = 8
-RecentLabel.Parent = StickerDrawer
-
-local RecentsFrame = Instance.new("Frame")
-RecentsFrame.Size = UDim2.new(1, -24, 0, 50)
-RecentsFrame.Position = UDim2.new(0, 12, 0, 26)
-RecentsFrame.BackgroundTransparency = 1
-RecentsFrame.ZIndex = 8
-RecentsFrame.Parent = StickerDrawer
-
-local RecentsLayout = Instance.new("UIListLayout")
-RecentsLayout.FillDirection = Enum.FillDirection.Horizontal
-RecentsLayout.Padding = UDim.new(0, 8)
-RecentsLayout.Parent = RecentsFrame
-
-local AllStickersScroll = Instance.new("ScrollingFrame")
-AllStickersScroll.Size = UDim2.new(1, -24, 0, 120)
-AllStickersScroll.Position = UDim2.new(0, 12, 0, 82)
-AllStickersScroll.BackgroundTransparency = 1
-AllStickersScroll.ScrollBarThickness = 2
-AllStickersScroll.ZIndex = 8
-AllStickersScroll.Parent = StickerDrawer
-
-local StickersGrid = Instance.new("UIGridLayout")
-StickersGrid.CellSize = UDim2.new(0, 50, 0, 50)
-StickersGrid.CellPadding = UDim2.new(0, 8, 0, 8)
-StickersGrid.Parent = AllStickersScroll
-
--- BARRA DE NAVEGAÇÃO INFERIOR (Estilo TikTok)
+-- BARRA DE NAVEGAÇÃO INFERIOR
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, 0, 0, 55)
 TabBar.Position = UDim2.new(0, 0, 1, -55)
@@ -392,7 +358,279 @@ Tab2Btn.TextSize = 13
 Tab2Btn.TextColor3 = Color3.fromRGB(120, 120, 130)
 Tab2Btn.Parent = TabBar
 
--- NAVEGAÇÃO ENTRE ABAS
+-- FUNÇÕES DA UI
+local function UpdateFriendsList()
+    for _, child in pairs(FriendsScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    for id, name in pairs(LocalData.friends) do
+        local FCard = Instance.new("Frame")
+        FCard.Size = UDim2.new(1, 0, 0, 50)
+        FCard.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+        FCard.Parent = FriendsScroll
+
+        local FCardCorner = Instance.new("UICorner")
+        FCardCorner.CornerRadius = UDim.new(0, 8)
+        FCardCorner.Parent = FCard
+
+        local FAvatar = Instance.new("ImageLabel")
+        FAvatar.Size = UDim2.new(0, 36, 0, 36)
+        FAvatar.Position = UDim2.new(0, 8, 0, 7)
+        FAvatar.BackgroundTransparency = 1
+        FAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. id .. "&width=420&height=420&format=png"
+        FAvatar.Parent = FCard
+
+        local FAvatarCorner = Instance.new("UICorner")
+        FAvatarCorner.CornerRadius = UDim.new(0, 6)
+        FAvatarCorner.Parent = FAvatar
+
+        local FName = Instance.new("TextLabel")
+        FName.Text = name
+        FName.Font = Enum.Font.GothamBold
+        FName.TextSize = 13
+        FName.TextColor3 = Color3.fromRGB(255, 255, 255)
+        FName.Position = UDim2.new(0, 52, 0, 16)
+        FName.Size = UDim2.new(0, 130, 0, 18)
+        FName.BackgroundTransparency = 1
+        FName.TextXAlignment = Enum.TextXAlignment.Left
+        FName.Parent = FCard
+
+        local OpenChatBtn = Instance.new("TextButton")
+        OpenChatBtn.Size = UDim2.new(0, 60, 0, 28)
+        OpenChatBtn.Position = UDim2.new(1, -68, 0, 11)
+        OpenChatBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        OpenChatBtn.Text = "Chat"
+        OpenChatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        OpenChatBtn.Font = Enum.Font.GothamBold
+        OpenChatBtn.TextSize = 12
+        OpenChatBtn.Parent = FCard
+
+        local OpenCorner = Instance.new("UICorner")
+        OpenCorner.CornerRadius = UDim.new(0, 6)
+        OpenCorner.Parent = OpenChatBtn
+
+        OpenChatBtn.MouseButton1Click:Connect(function()
+            activeChatUserId = id
+            ChatName.Text = name
+            ChatAvatar.Image = FAvatar.Image
+            
+            ChatWindow.Position = UDim2.new(1, 0, 0, 0)
+            local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)})
+            tween:Play()
+            
+            RenderMessages(id)
+        end)
+    end
+end
+
+local function UpdateNotifications()
+    for _, child in pairs(NotifScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    if #friendRequests == 0 then
+        EmptyNotifText.Visible = true
+        BellBadge.Visible = false
+    else
+        EmptyNotifText.Visible = false
+        BellBadge.Text = tostring(#friendRequests)
+        BellBadge.Visible = true
+        
+        for i, req in ipairs(friendRequests) do
+            local ReqFrame = Instance.new("Frame")
+            ReqFrame.Size = UDim2.new(1, 0, 0, 50)
+            ReqFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            ReqFrame.Parent = NotifScroll
+            
+            local ReqCorner = Instance.new("UICorner")
+            ReqCorner.CornerRadius = UDim.new(0, 8)
+            ReqCorner.Parent = ReqFrame
+            
+            local ReqAvatar = Instance.new("ImageLabel")
+            ReqAvatar.Size = UDim2.new(0, 36, 0, 36)
+            ReqAvatar.Position = UDim2.new(0, 8, 0, 7)
+            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. req.userId .. "&width=420&height=420&format=png"
+            ReqAvatar.BackgroundTransparency = 1
+            ReqAvatar.Parent = ReqFrame
+            
+            local ReqAvatarCorner = Instance.new("UICorner")
+            ReqAvatarCorner.CornerRadius = UDim.new(1, 0)
+            ReqAvatarCorner.Parent = ReqAvatar
+            
+            local ReqName = Instance.new("TextLabel")
+            ReqName.Size = UDim2.new(0, 100, 0, 18)
+            ReqName.Position = UDim2.new(0, 52, 0, 16)
+            ReqName.BackgroundTransparency = 1
+            ReqName.Text = req.username
+            ReqName.Font = Enum.Font.GothamBold
+            ReqName.TextSize = 13
+            ReqName.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ReqName.TextXAlignment = Enum.TextXAlignment.Left
+            ReqName.Parent = ReqFrame
+            
+            -- Botão Aceitar (Verde)
+            local AcceptBtn = Instance.new("TextButton")
+            AcceptBtn.Size = UDim2.new(0, 30, 0, 30)
+            AcceptBtn.Position = UDim2.new(1, -76, 0, 10)
+            AcceptBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+            AcceptBtn.Text = "✓"
+            AcceptBtn.TextColor3 = Color3.fromRGB(255,255,255)
+            AcceptBtn.Font = Enum.Font.GothamBold
+            AcceptBtn.Parent = ReqFrame
+            
+            local AcceptCorner = Instance.new("UICorner")
+            AcceptCorner.CornerRadius = UDim.new(0, 6)
+            AcceptCorner.Parent = AcceptBtn
+            
+            -- Botão Recusar (Vermelho)
+            local DeclineBtn = Instance.new("TextButton")
+            DeclineBtn.Size = UDim2.new(0, 30, 0, 30)
+            DeclineBtn.Position = UDim2.new(1, -38, 0, 10)
+            DeclineBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+            DeclineBtn.Text = "✗"
+            DeclineBtn.TextColor3 = Color3.fromRGB(255,255,255)
+            DeclineBtn.Font = Enum.Font.GothamBold
+            DeclineBtn.Parent = ReqFrame
+            
+            local DeclineCorner = Instance.new("UICorner")
+            DeclineCorner.CornerRadius = UDim.new(0, 6)
+            DeclineCorner.Parent = DeclineBtn
+            
+            AcceptBtn.MouseButton1Click:Connect(function()
+                if ws then
+                    ws:Send(HttpService:JSONEncode({
+                        type = "accept_friend",
+                        targetUserId = req.userId
+                    }))
+                end
+                -- Adiciona localmente caso o server atrase, para uso imediato
+                LocalData.friends[tostring(req.userId)] = req.username
+                SaveLocalData()
+                
+                table.remove(friendRequests, i)
+                UpdateNotifications()
+                UpdateFriendsList()
+            end)
+            
+            DeclineBtn.MouseButton1Click:Connect(function()
+                if ws then
+                    ws:Send(HttpService:JSONEncode({
+                        type = "decline_friend",
+                        targetUserId = req.userId
+                    }))
+                end
+                table.remove(friendRequests, i)
+                UpdateNotifications()
+            end)
+        end
+    end
+end
+
+function RenderSearchResults(results)
+    for _, child in pairs(SearchResultsScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    for _, user in ipairs(results) do
+        local Card = Instance.new("Frame")
+        Card.Size = UDim2.new(1, 0, 0, 50)
+        Card.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+        Card.Parent = SearchResultsScroll
+
+        local CardCorner = Instance.new("UICorner")
+        CardCorner.CornerRadius = UDim.new(0, 8)
+        CardCorner.Parent = Card
+
+        local Avatar = Instance.new("ImageLabel")
+        Avatar.Size = UDim2.new(0, 36, 0, 36)
+        Avatar.Position = UDim2.new(0, 8, 0, 7)
+        Avatar.BackgroundTransparency = 1
+        Avatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. user.userId .. "&width=420&height=420&format=png"
+        Avatar.Parent = Card
+
+        local AvatarCorner = Instance.new("UICorner")
+        AvatarCorner.CornerRadius = UDim.new(0, 6)
+        AvatarCorner.Parent = Avatar
+
+        local Name = Instance.new("TextLabel")
+        Name.Text = user.username
+        Name.Font = Enum.Font.GothamBold
+        Name.TextSize = 13
+        Name.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Name.Position = UDim2.new(0, 52, 0, 16)
+        Name.Size = UDim2.new(0, 130, 0, 18)
+        Name.BackgroundTransparency = 1
+        Name.TextXAlignment = Enum.TextXAlignment.Left
+        Name.Parent = Card
+
+        local AddBtn = Instance.new("TextButton")
+        AddBtn.Size = UDim2.new(0, 80, 0, 28)
+        AddBtn.Position = UDim2.new(1, -88, 0, 11)
+        AddBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+        AddBtn.Text = "Adicionar"
+        AddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        AddBtn.Font = Enum.Font.GothamBold
+        AddBtn.TextSize = 12
+        AddBtn.Parent = Card
+        
+        local AddCorner = Instance.new("UICorner")
+        AddCorner.CornerRadius = UDim.new(0, 6)
+        AddCorner.Parent = AddBtn
+
+        AddBtn.MouseButton1Click:Connect(function()
+            if ws then
+                ws:Send(HttpService:JSONEncode({
+                    type = "send_friend_request",
+                    targetUserId = user.userId
+                }))
+                AddBtn.Text = "Enviado!"
+                AddBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+            end
+        end)
+    end
+end
+
+function RenderMessages(userId)
+    for _, child in pairs(MessagesScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    local chatHistory = LocalData.chats[tostring(userId)] or {}
+    for _, msg in ipairs(chatHistory) do
+        local MsgFrame = Instance.new("Frame")
+        MsgFrame.Size = UDim2.new(1, 0, 0, 30)
+        MsgFrame.BackgroundTransparency = 1
+        MsgFrame.Parent = MessagesScroll
+        
+        local Txt = Instance.new("TextLabel")
+        Txt.Text = msg.content
+        Txt.Font = Enum.Font.Gotham
+        Txt.TextSize = 13
+        Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Txt.BackgroundTransparency = 0
+        
+        local TxtCorner = Instance.new("UICorner")
+        TxtCorner.CornerRadius = UDim.new(0, 8)
+        TxtCorner.Parent = Txt
+        
+        local textWidth = string.len(msg.content) * 7 + 20
+        textWidth = math.clamp(textWidth, 40, 220)
+        Txt.Size = UDim2.new(0, textWidth, 1, 0)
+        
+        if msg.sender == "me" then
+            Txt.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+            Txt.Position = UDim2.new(1, -textWidth, 0, 0)
+        else
+            Txt.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            Txt.Position = UDim2.new(0, 0, 0, 0)
+        end
+        Txt.Parent = MsgFrame
+    end
+    MessagesScroll.CanvasPosition = Vector2.new(0, 99999)
+end
+
+-- EVENTOS DE CLIQUE E NAVEGAÇÃO
 Tab1Btn.MouseButton1Click:Connect(function()
     HomeTab.Visible = true
     MessagesTab.Visible = false
@@ -416,7 +654,51 @@ BellBtn.MouseButton1Click:Connect(function()
     NotificationsFrame.Visible = not NotificationsFrame.Visible
 end)
 
--- SISTEMA DE WEBSOCKET & COMUNICAÇÃO
+BackBtn.MouseButton1Click:Connect(function()
+    local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)})
+    tween:Play()
+    activeChatUserId = nil
+end)
+
+SendBtn.MouseButton1Click:Connect(function()
+    if activeChatUserId and ChatTextBox.Text ~= "" and ws then
+        local msgText = ChatTextBox.Text
+        ChatTextBox.Text = ""
+        
+        local newMsg = {sender = "me", type = "text", content = msgText}
+        local idStr = tostring(activeChatUserId)
+        
+        if not LocalData.chats[idStr] then
+            LocalData.chats[idStr] = {}
+        end
+        table.insert(LocalData.chats[idStr], newMsg)
+        SaveLocalData()
+        RenderMessages(activeChatUserId)
+        
+        ws:Send(HttpService:JSONEncode({
+            type = "private_message",
+            targetUserId = idStr,
+            content = msgText
+        }))
+    end
+end)
+
+-- PESQUISA DE USUÁRIOS LOGIC
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local text = SearchBox.Text
+    if #text > 0 and ws then
+        ws:Send(HttpService:JSONEncode({
+            type = "search_users",
+            query = text
+        }))
+    else
+        for _, child in pairs(SearchResultsScroll:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+    end
+end)
+
+-- WEBSOCKET INICIALIZAÇÃO
 local function ConnectWebSocket()
     if WebSocket and WebSocket.connect then
         local success, connection = pcall(function()
@@ -448,7 +730,15 @@ local function ConnectWebSocket()
                     SaveLocalData()
                     UpdateFriendsList()
                 elseif data.type == "private_message" then
-                    ReceivePrivateMessage(data)
+                    local idStr = tostring(data.fromUserId)
+                    if not LocalData.chats[idStr] then
+                        LocalData.chats[idStr] = {}
+                    end
+                    table.insert(LocalData.chats[idStr], {sender = "them", type = "text", content = data.content})
+                    SaveLocalData()
+                    if activeChatUserId == idStr then
+                        RenderMessages(idStr)
+                    end
                 elseif data.type == "presence_update" then
                     presenceStatuses[tostring(data.userId)] = data.status
                     if activeChatUserId == tostring(data.userId) then
@@ -464,423 +754,6 @@ local function ConnectWebSocket()
     end
 end
 
--- PESQUISA DE USUÁRIOS
-SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    local text = SearchBox.Text
-    if #text > 0 and ws then
-        ws:Send(HttpService:JSONEncode({
-            type = "search_users",
-            query = text
-        }))
-    else
-        for _, child in pairs(SearchResultsScroll:GetChildren()) do
-            if child:IsA("Frame") then child:Destroy() end
-        end
-    end
-end)
-
-function RenderSearchResults(results)
-    for _, child in pairs(SearchResultsScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-
-    for _, user in ipairs(results) do
-        local Card = Instance.new("Frame")
-        Card.Size = UDim2.new(1, 0, 0, 50)
-        Card.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-        Card.Parent = SearchResultsScroll
-
-        local CardCorner = Instance.new("UICorner")
-        CardCorner.CornerRadius = UDim.new(0, 8)
-        CardCorner.Parent = Card
-
-        local Avatar = Instance.new("ImageLabel")
-        Avatar.Size = UDim2.new(0, 36, 0, 36)
-        Avatar.Position = UDim2.new(0, 8, 0, 7)
-        Avatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. user.userId .. "&width=420&height=420&format=png"
-        Avatar.Parent = Card
-
-        local AvatarCorner = Instance.new("UICorner")
-        AvatarCorner.CornerRadius = UDim.new(0, 6)
-        AvatarCorner.Parent = Avatar
-
-        local Name = Instance.new("TextLabel")
-        Name.Text = user.username
-        Name.Font = Enum.Font.GothamBold
-        Name.TextSize = 13
-        Name.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Name.Position = UDim2.new(0, 52, 0, 16)
-        Name.Size = UDim2.new(0, 130, 0, 18)
-        Name.TextXAlignment = Enum.TextXAlignment.Left
-        Name.Parent = Card
-
-        local AddBtn = Instance.new("TextButton")
-        AddBtn.Size = UDim2.new(0, 80, 0, 28)
-        AddBtn.Position = UDim2.new(1, -88, 0, 11)
-        AddBtn.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
-        AddBtn.Text = "Adicionar"
-        AddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        AddBtn.Font = Enum.Font.GothamBold
-        AddBtn.TextSize = 11
-        AddBtn.Parent = Card
-
-        local BtnCorner = Instance.new("UICorner")
-        BtnCorner.CornerRadius = UDim.new(0, 6)
-        BtnCorner.Parent = AddBtn
-
-        AddBtn.MouseButton1Click:Connect(function()
-            if ws then
-                ws:Send(HttpService:JSONEncode({
-                    type = "send_friend_request",
-                    targetUserId = user.userId,
-                    fromName = LocalPlayer.Name
-                }))
-                AddBtn.Text = "Enviado"
-                AddBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-            end
-        end)
-    end
-end
-
--- NOTIFICAÇÕES (SOLICITAÇÕES DE AMIZADE)
-function UpdateNotifications()
-    if #friendRequests > 0 then
-        BellBadge.Text = tostring(#friendRequests)
-        BellBadge.Visible = true
-    else
-        BellBadge.Visible = false
-    end
-
-    for _, child in pairs(NotifScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-
-    for idx, req in ipairs(friendRequests) do
-        local Item = Instance.new("Frame")
-        Item.Size = UDim2.new(1, 0, 0, 40)
-        Item.BackgroundColor3 = Color3.fromRGB(34, 34, 42)
-        Item.Parent = NotifScroll
-
-        local ItemCorner = Instance.new("UICorner")
-        ItemCorner.CornerRadius = UDim.new(0, 6)
-        ItemCorner.Parent = Item
-
-        local Label = Instance.new("TextLabel")
-        Label.Text = req.fromName
-        Label.Font = Enum.Font.Gotham
-        Label.TextSize = 12
-        Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Label.Position = UDim2.new(0, 10, 0, 12)
-        Label.Size = UDim2.new(0, 120, 0, 16)
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.Parent = Item
-
-        local AcceptBtn = Instance.new("TextButton")
-        AcceptBtn.Size = UDim2.new(0, 60, 0, 24)
-        AcceptBtn.Position = UDim2.new(1, -68, 0, 8)
-        AcceptBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
-        AcceptBtn.Text = "Aceitar"
-        AcceptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        AcceptBtn.Font = Enum.Font.GothamBold
-        AcceptBtn.TextSize = 10
-        AcceptBtn.Parent = Item
-
-        local AccCorner = Instance.new("UICorner")
-        AccCorner.CornerRadius = UDim.new(0, 4)
-        AccCorner.Parent = AcceptBtn
-
-        AcceptBtn.MouseButton1Click:Connect(function()
-            LocalData.friends[tostring(req.fromId)] = req.fromName
-            SaveLocalData()
-            if ws then
-                ws:Send(HttpService:JSONEncode({
-                    type = "accept_friend_request",
-                    senderId = req.fromId,
-                    username = LocalPlayer.Name
-                }))
-            end
-            table.remove(friendRequests, idx)
-            UpdateNotifications()
-            UpdateFriendsList()
-        end)
-    end
-end
-
--- ATUALIZAR LISTA DE AMIGOS (ABA MENSAGENS)
-function UpdateFriendsList()
-    for _, child in pairs(FriendsScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-
-    for userId, username in pairs(LocalData.friends) do
-        local Card = Instance.new("Frame")
-        Card.Size = UDim2.new(1, 0, 0, 56)
-        Card.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-        Card.Parent = FriendsScroll
-
-        local CardCorner = Instance.new("UICorner")
-        CardCorner.CornerRadius = UDim.new(0, 10)
-        CardCorner.Parent = Card
-
-        local Avatar = Instance.new("ImageLabel")
-        Avatar.Size = UDim2.new(0, 40, 0, 40)
-        Avatar.Position = UDim2.new(0, 8, 0, 8)
-        Avatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
-        Avatar.Parent = Card
-
-        local AvatarCorner = Instance.new("UICorner")
-        AvatarCorner.CornerRadius = UDim.new(1, 0) -- Redonda
-        AvatarCorner.Parent = Avatar
-
-        local Name = Instance.new("TextLabel")
-        Name.Text = username
-        Name.Font = Enum.Font.GothamBold
-        Name.TextSize = 14
-        Name.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Name.Position = UDim2.new(0, 56, 0, 18)
-        Name.Size = UDim2.new(0, 180, 0, 18)
-        Name.TextXAlignment = Enum.TextXAlignment.Left
-        Name.Parent = Card
-
-        -- Click no retângulo para abrir chat
-        local ClickBtn = Instance.new("TextButton")
-        ClickBtn.Size = UDim2.new(1, 0, 1, 0)
-        ClickBtn.BackgroundTransparency = 1
-        ClickBtn.Text = ""
-        ClickBtn.Parent = Card
-
-        ClickBtn.MouseButton1Click:Connect(function()
-            OpenChat(userId, username)
-        end)
-    end
-end
-
--- ABRIR E GERENCIAR CHAT PRIVADO
-function OpenChat(userId, username)
-    activeChatUserId = userId
-    ChatName.Text = username
-    ChatAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
-
-    -- Requisitar status online
-    if ws then
-        ws:Send(HttpService:JSONEncode({
-            type = "check_status",
-            targetUserId = userId
-        }))
-    end
-
-    RenderChatHistory(userId)
-
-    -- Animação de deslizar janela de chat
-    TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0, 0, 0, 0)
-    }):Play()
-end
-
-BackBtn.MouseButton1Click:Connect(function()
-    activeChatUserId = nil
-    TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(1, 0, 0, 0)
-    }):Play()
-end)
-
--- DESENHAR MENSAGENS E FIGURINHAS NO CHAT
-function RenderChatHistory(userId)
-    for _, child in pairs(MessagesScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-
-    local history = LocalData.chats[userId] or {}
-    for _, msg in ipairs(history) do
-        CreateMessageBubble(msg.sender == "me", msg.type, msg.content)
-    end
-    MessagesScroll.CanvasPosition = Vector2.new(0, MessagesScroll.AbsoluteCanvasSize.Y)
-end
-
-function CreateMessageBubble(isMe, msgType, content)
-    local Bubble = Instance.new("Frame")
-    Bubble.BackgroundColor3 = isMe and Color3.fromRGB(0, 122, 255) or Color3.fromRGB(40, 40, 48) -- Cinza claro arredondado / Azul
-    Bubble.Parent = MessagesScroll
-
-    local BCorner = Instance.new("UICorner")
-    BCorner.CornerRadius = UDim.new(0, 14)
-    BCorner.Parent = Bubble
-
-    if msgType == "text" then
-        local Text = Instance.new("TextLabel")
-        Text.Text = content
-        Text.Font = Enum.Font.Gotham
-        Text.TextSize = 13
-        Text.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Text.Size = UDim2.new(0, 0, 0, 0)
-        Text.TextWrapped = true
-        Text.Parent = Bubble
-
-        -- Ajusta tamanho do balão baseado no texto
-        local textSize = game:GetService("TextService"):GetTextSize(content, 13, Enum.Font.Gotham, Vector2.new(200, 1000))
-        Bubble.Size = UDim2.new(0, textSize.X + 24, 0, textSize.Y + 14)
-        Text.Size = UDim2.new(1, -12, 1, -8)
-        Text.Position = UDim2.new(0, 6, 0, 4)
-    elseif msgType == "sticker" then
-        Bubble.BackgroundTransparency = 1
-        Bubble.Size = UDim2.new(0, 90, 0, 90)
-
-        local Img = Instance.new("ImageLabel")
-        Img.Size = UDim2.new(1, 0, 1, 0)
-        Img.BackgroundTransparency = 1
-        Img.Image = content
-        Img.Parent = Bubble
-    end
-
-    -- Alinhamento à direita (👉) pra você e à esquerda pro amigo (Igual Insta/TikTok)
-    if isMe then
-        Bubble.Position = UDim2.new(1, -Bubble.Size.X.Offset, 0, 0)
-    else
-        Bubble.Position = UDim2.new(0, 0, 0, 0)
-    end
-end
-
--- ENVIAR MENSAGENS
-function SendMessage(msgType, content)
-    if not activeChatUserId then return end
-
-    if not LocalData.chats[activeChatUserId] then
-        LocalData.chats[activeChatUserId] = {}
-    end
-
-    table.insert(LocalData.chats[activeChatUserId], {
-        sender = "me",
-        type = msgType,
-        content = content,
-        timestamp = os.time()
-    })
-    SaveLocalData()
-
-    CreateMessageBubble(true, msgType, content)
-    MessagesScroll.CanvasPosition = Vector2.new(0, MessagesScroll.AbsoluteCanvasSize.Y)
-
-    if ws then
-        ws:Send(HttpService:JSONEncode({
-            type = "send_message",
-            toUserId = activeChatUserId,
-            msgType = msgType,
-            content = content
-        }))
-    end
-end
-
-SendBtn.MouseButton1Click:Connect(function()
-    if #ChatTextBox.Text > 0 then
-        SendMessage("text", ChatTextBox.Text)
-        ChatTextBox.Text = ""
-    end
-end)
-
--- RECEBER MENSAGENS
-function ReceivePrivateMessage(data)
-    local fromId = tostring(data.fromUserId)
-
-    if not LocalData.chats[fromId] then
-        LocalData.chats[fromId] = {}
-    end
-
-    table.insert(LocalData.chats[fromId], {
-        sender = "them",
-        type = data.msgType,
-        content = data.content,
-        timestamp = data.timestamp
-    })
-    SaveLocalData()
-
-    if activeChatUserId == fromId then
-        CreateMessageBubble(false, data.msgType, data.content)
-        MessagesScroll.CanvasPosition = Vector2.new(0, MessagesScroll.AbsoluteCanvasSize.Y)
-    end
-end
-
--- DETECTAR SE ESTÁ DIGITANDO...
-ChatTextBox:GetPropertyChangedSignal("Text"):Connect(function()
-    if ws and activeChatUserId then
-        ws:Send(HttpService:JSONEncode({
-            type = "typing_status",
-            toUserId = activeChatUserId,
-            isTyping = (#ChatTextBox.Text > 0)
-        }))
-    end
-end)
-
--- SISTEMA DE FIGURINHAS (GITHUB & PAINEL)
-local drawerOpen = false
-
-local function LoadStickersFromGitHub()
-    pcall(function()
-        local response = game:HttpGet(GITHUB_STICKERS_URL)
-        local items = HttpService:JSONDecode(response)
-
-        for _, item in ipairs(items) do
-            if item.type == "file" then
-                local imgUrl = GITHUB_RAW_BASE .. item.name
-
-                local Btn = Instance.new("ImageButton")
-                Btn.Size = UDim2.new(0, 50, 0, 50)
-                Btn.BackgroundTransparency = 1
-                Btn.Image = imgUrl
-                Btn.Parent = AllStickersScroll
-
-                Btn.MouseButton1Click:Connect(function()
-                    SendMessage("sticker", imgUrl)
-                    AddRecentSticker(imgUrl)
-                end)
-            end
-        end
-    end)
-end
-
-function AddRecentSticker(url)
-    for i, v in ipairs(LocalData.recentStickers) do
-        if v == url then table.remove(LocalData.recentStickers, i) end
-    end
-    table.insert(LocalData.recentStickers, 1, url)
-    if #LocalData.recentStickers > 5 then
-        table.remove(LocalData.recentStickers, 6)
-    end
-    SaveLocalData()
-    RenderRecentStickers()
-end
-
-function RenderRecentStickers()
-    for _, child in pairs(RecentsFrame:GetChildren()) do
-        if child:IsA("ImageButton") then child:Destroy() end
-    end
-
-    for _, url in ipairs(LocalData.recentStickers) do
-        local Btn = Instance.new("ImageButton")
-        Btn.Size = UDim2.new(0, 48, 0, 48)
-        Btn.BackgroundTransparency = 1
-        Btn.Image = url
-        Btn.Parent = RecentsFrame
-
-        Btn.MouseButton1Click:Connect(function()
-            SendMessage("sticker", url)
-        end)
-    end
-end
-
-EmojiBtn.MouseButton1Click:Connect(function()
-    drawerOpen = not drawerOpen
-    local targetPos = drawerOpen and UDim2.new(0, 0, 1, -210) or UDim2.new(0, 0, 1, 0)
-    local chatScrollSize = drawerOpen and UDim2.new(1, -20, 1, -315) or UDim2.new(1, -20, 1, -115)
-
-    TweenService:Create(StickerDrawer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = targetPos
-    }):Play()
-
-    TweenService:Create(MessagesScroll, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = chatScrollSize
-    }):Play()
-end)
-
--- INICIALIZAÇÃO
+-- Inicializa o Websocket e as listas vazias
+UpdateNotifications()
 ConnectWebSocket()
-LoadStickersFromGitHub()
-RenderRecentStickers()
