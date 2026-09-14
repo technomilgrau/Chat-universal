@@ -1,5 +1,6 @@
 -- Chat Universal - techno_milgrau
 -- Compatível com Delta Executor
+-- Versão com Correção de Fluxo de Mensagens, Stickers e Presença em Tempo Real
 
 local SERVER_URL = "wss://chat-universal-online.onrender.com" -- Digite seu WSS da Render aqui
 local GITHUB_STICKERS_URL = "https://api.github.com/repos/technomilgrau/Chat-universal/contents/Stickers"
@@ -69,7 +70,7 @@ local function GenerateMessageID()
     return HttpService:GenerateGUID(false)
 end
 
--- WebSocket Connection
+-- WebSocket Connection e Estados Globais
 local ws = nil
 local activeChatUserId = nil
 local friendRequests = {}
@@ -218,7 +219,7 @@ MinimizedBtn.MouseButton1Click:Connect(function()
     tween:Play()
 end)
 
--- Botão de Notificações (Sino Emoji)
+-- Botão de Notificações
 local BellBtn = Instance.new("TextButton")
 BellBtn.Size = UDim2.new(0, 28, 0, 28)
 BellBtn.Position = UDim2.new(1, -44, 0, 16)
@@ -455,8 +456,9 @@ ChatTextBox.TextWrapped = true
 ChatTextBox.ZIndex = 21
 ChatTextBox.Parent = ChatInputFrame
 
--- CORREÇÃO ITEM 4: Botão de Enviar com texto retangular azul
+-- BOTÃO ENVIAR CONFORME REQUISITO 7 (Texto "Enviar", Retangular Azul RGB(0,140,255), Fonte GothamBold, Texto Branco)
 local SendBtn = Instance.new("TextButton")
+SendBtn.Name = "SendBtn"
 SendBtn.Size = UDim2.new(0, 60, 0, 30)
 SendBtn.Position = UDim2.new(1, -65, 0, 6)
 SendBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
@@ -472,7 +474,7 @@ local SendCorner = Instance.new("UICorner")
 SendCorner.CornerRadius = UDim.new(0, 6)
 SendCorner.Parent = SendBtn
 
--- Lógica para envio de estado "digitando..." (ITEM 3)
+-- Lógica para envio de estado "digitando..."
 local isTypingState = false
 ChatTextBox:GetPropertyChangedSignal("Text"):Connect(function()
     if activeChatUserId and ws then
@@ -506,7 +508,7 @@ ChatTextBox.FocusLost:Connect(function()
     end
 end)
 
--- PAINEL DE STICKERS (Aba estilo TikTok)
+-- PAINEL DE STICKERS
 local StickerPanel = Instance.new("Frame")
 StickerPanel.Size = UDim2.new(1, 0, 0, 250)
 StickerPanel.Position = UDim2.new(0, 0, 1, -298)
@@ -585,7 +587,7 @@ AllGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     StickerScroll.CanvasSize = UDim2.new(0, 0, 0, RecentLabel.AbsoluteSize.Y + RecentGridFrame.AbsoluteSize.Y + AllLabel.AbsoluteSize.Y + AllGridFrame.AbsoluteSize.Y + 40)
 end)
 
--- CORREÇÃO ITEM 2: SISTEMA DE BAIXAR E CARREGAR IMAGENS CORRIGIDO E ROBUSTO
+-- SISTEMA DE CARREGAMENTO E OBTENÇÃO DE ASSETS DE STICKER
 local function GetStickerAsset(filename)
     if not filename or filename == "" then return "" end
     
@@ -597,6 +599,7 @@ local function GetStickerAsset(filename)
     if not isfolder(stickerFolder) then
         makefolder(stickerFolder)
     end
+
     local filePath = stickerFolder .. "/" .. filename
     if not isfile(filePath) then
         local url = GITHUB_RAW_BASE .. filename
@@ -608,7 +611,7 @@ local function GetStickerAsset(filename)
         end
     end
     
-    local customAssetFunc = getcustomasset or getsynasset
+    local customAssetFunc = getcustomasset or getsynasset or (getgenv and getgenv().getcustomasset)
     if customAssetFunc then
         local success, assetId = pcall(function()
             return customAssetFunc(filePath)
@@ -634,10 +637,12 @@ local function AddRecentSticker(filename)
     SaveLocalData()
 end
 
--- CORREÇÃO ITEM 1 E ITEM 2: Envio e Renderização instantânea de Stickers
+-- ENVIO DE STICKERS COM LOGS OBRIGATÓRIOS E RENDERIZAÇÃO INSTANTÂNEA
 local function SendSticker(filename)
     if activeChatUserId and ws then
         local idStr = tostring(activeChatUserId)
+        print("[CHAT] Enviando mensagem: sticker (" .. tostring(filename) .. ")")
+
         local newMsg = {
             id = GenerateMessageID(),
             sender = "me",
@@ -652,6 +657,8 @@ local function SendSticker(filename)
             LocalData.chats[idStr] = {} 
         end
         table.insert(LocalData.chats[idStr], newMsg)
+        print("[CHAT] Mensagem adicionada ao histórico local")
+
         AddRecentSticker(filename)
         SaveLocalData()
         
@@ -886,7 +893,6 @@ function UpdateNotifications()
             ReqName.ZIndex = 13
             ReqName.Parent = ReqFrame
             
-            -- Botão Aceitar (Verde)
             local AcceptBtn = Instance.new("TextButton")
             AcceptBtn.Size = UDim2.new(0, 30, 0, 30)
             AcceptBtn.Position = UDim2.new(1, -76, 0, 10)
@@ -901,7 +907,6 @@ function UpdateNotifications()
             AcceptCorner.CornerRadius = UDim.new(0, 6)
             AcceptCorner.Parent = AcceptBtn
             
-            -- Botão Recusar (Vermelho)
             local DeclineBtn = Instance.new("TextButton")
             DeclineBtn.Size = UDim2.new(0, 30, 0, 30)
             DeclineBtn.Position = UDim2.new(1, -38, 0, 10)
@@ -1013,7 +1018,7 @@ function RenderSearchResults(results)
     end
 end
 
--- CORREÇÃO ITEM 1 E ITEM 2: RENDERIZAÇÃO DE MENSAGENS E STICKERS
+-- RENDERIZAÇÃO DE MENSAGENS E STICKERS
 function RenderMessages(userId)
     local targetIdStr = tostring(userId)
     
@@ -1027,7 +1032,7 @@ function RenderMessages(userId)
     local friendInfo = LocalData.friends[targetIdStr] or {username="Desconhecido", displayName="Desconhecido"}
     local displayName = friendInfo.displayName or friendInfo.username
 
-    -- 1. CABEÇALHO DO CHAT (Início da Conversa)
+    -- CABEÇALHO DO CHAT
     local IntroFrame = Instance.new("Frame")
     IntroFrame.Size = UDim2.new(1, 0, 0, 220)
     IntroFrame.BackgroundTransparency = 1
@@ -1121,13 +1126,13 @@ function RenderMessages(userId)
         UpdateFriendsList()
     end)
 
-    -- 2. RENDERIZAR MENSAGENS E DATAS
+    -- RENDERIZAR MENSAGENS NO SCROLL
     local lastTimestamp = 0
 
     for idx, msg in ipairs(chatHistory) do
+        print("[CHAT] Renderizando mensagem: " .. tostring(msg.content))
         msg.timestamp = msg.timestamp or 0
 
-        -- Checar diferença de 10 min (600 segundos) para mostrar Data/Hora
         if msg.timestamp - lastTimestamp > 600 and msg.timestamp > 0 then
             local TimeFrame = Instance.new("TextLabel")
             TimeFrame.Size = UDim2.new(1, 0, 0, 20)
@@ -1199,7 +1204,6 @@ function RenderMessages(userId)
                 end)
             end
         else
-            -- Renderização Textual Normal
             MsgFrame.Size = UDim2.new(1, 0, 0, 30)
             local Txt = Instance.new("TextLabel")
             
@@ -1286,7 +1290,7 @@ EditBtn.MouseButton1Click:Connect(function()
     ContextMenu.Visible = false
 end)
 
--- EVENTOS DE CLIQUE E NAVEGAÇÃO
+-- EVENTOS DE NAVEGAÇÃO ENTRE ABAS
 Tab1Btn.MouseButton1Click:Connect(function()
     HomeTab.Visible = true
     MessagesTab.Visible = false
@@ -1319,15 +1323,16 @@ BackBtn.MouseButton1Click:Connect(function()
     SendBtn.Text = "Enviar"
 end)
 
--- CORREÇÃO ITEM 1: Envio Instantâneo de Mensagens de Texto
+-- ENVIO INSTANTÂNEO DE MENSAGENS DE TEXTO
 SendBtn.MouseButton1Click:Connect(function()
     if activeChatUserId and ChatTextBox.Text ~= "" and ws then
         local msgText = ChatTextBox.Text
         ChatTextBox.Text = ""
         local idStr = tostring(activeChatUserId)
+
+        print("[CHAT] Enviando mensagem: " .. tostring(msgText))
         
         if editingMessageId then
-            -- Lógica de Edição
             local chat = LocalData.chats[idStr]
             if chat then
                 for _, m in ipairs(chat) do
@@ -1347,7 +1352,6 @@ SendBtn.MouseButton1Click:Connect(function()
             editingMessageId = nil
             SendBtn.Text = "Enviar"
         else
-            -- Lógica Normal de Envio
             local newMsg = {
                 id = GenerateMessageID(),
                 sender = "me",
@@ -1362,6 +1366,7 @@ SendBtn.MouseButton1Click:Connect(function()
                 LocalData.chats[idStr] = {}
             end
             table.insert(LocalData.chats[idStr], newMsg)
+            print("[CHAT] Mensagem adicionada ao histórico local")
             
             ws:Send(HttpService:JSONEncode({
                 type = "send_message",
@@ -1379,7 +1384,7 @@ SendBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- PESQUISA DE USUÁRIOS LOGIC
+-- PESQUISA DE USUÁRIOS
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     local text = SearchBox.Text
     if #text > 0 and ws then
@@ -1394,16 +1399,19 @@ SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- WEBSOCKET INICIALIZAÇÃO
+-- WEBSOCKET INICIALIZAÇÃO E TRATAMENTO DE EVENTOS
 local function ConnectWebSocket()
-    if WebSocket and WebSocket.connect then
+    local WebSocketFunc = WebSocket or (syn and syn.websocket)
+    if WebSocketFunc and WebSocketFunc.connect then
         local success, connection = pcall(function()
-            return WebSocket.connect(SERVER_URL)
+            return WebSocketFunc.connect(SERVER_URL)
         end)
 
-        if success then
+        if success and connection then
             ws = connection
-            -- Registrar Usuário no Servidor (envia DisplayName e Name reais)
+            
+            -- Registrar Usuário no Servidor
+            print("[PRESENCE] Usuário registrado: " .. LocalPlayer.Name .. " (" .. tostring(LocalPlayer.UserId) .. ")")
             ws:Send(HttpService:JSONEncode({
                 type = "register",
                 userId = tostring(LocalPlayer.UserId),
@@ -1412,7 +1420,8 @@ local function ConnectWebSocket()
             }))
 
             ws.OnMessage:Connect(function(msg)
-                local data = HttpService:JSONDecode(msg)
+                local successDec, data = pcall(function() return HttpService:JSONDecode(msg) end)
+                if not successDec or not data then return end
 
                 if data.type == "search_results" then
                     RenderSearchResults(data.results)
@@ -1439,6 +1448,13 @@ local function ConnectWebSocket()
                     UpdateFriendsList()
                 elseif data.type == "private_message" then
                     local idStr = tostring(data.fromUserId)
+
+                    if data.msgType == "sticker" then
+                        print("[WS] Sticker recebido de " .. idStr .. ": " .. tostring(data.content))
+                    else
+                        print("[WS] Mensagem recebida de " .. idStr .. ": " .. tostring(data.content))
+                    end
+
                     if not LocalData.chats[idStr] then
                         LocalData.chats[idStr] = {}
                     end
@@ -1452,7 +1468,9 @@ local function ConnectWebSocket()
                         isEdited = false
                     })
                     SaveLocalData()
-                    if activeChatUserId == idStr then
+
+                    -- Se o chat com esse usuário estiver aberto, renderiza na hora!
+                    if tostring(activeChatUserId) == idStr then
                         RenderMessages(idStr)
                     end
                 elseif data.type == "message_deleted" then
@@ -1466,7 +1484,7 @@ local function ConnectWebSocket()
                             end
                         end
                         SaveLocalData()
-                        if activeChatUserId == idStr then RenderMessages(idStr) end
+                        if tostring(activeChatUserId) == idStr then RenderMessages(idStr) end
                     end
                 elseif data.type == "message_edited" then
                     local idStr = tostring(data.fromUserId)
@@ -1479,7 +1497,7 @@ local function ConnectWebSocket()
                             end
                         end
                         SaveLocalData()
-                        if activeChatUserId == idStr then RenderMessages(idStr) end
+                        if tostring(activeChatUserId) == idStr then RenderMessages(idStr) end
                     end
                 elseif data.type == "unfriended" then
                     local idStr = tostring(data.fromUserId)
@@ -1487,7 +1505,7 @@ local function ConnectWebSocket()
                     LocalData.chats[idStr] = nil
                     SaveLocalData()
                     UpdateFriendsList()
-                    if activeChatUserId == idStr then
+                    if tostring(activeChatUserId) == idStr then
                         local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3), {Position = UDim2.new(1, 0, 0, 0)})
                         tween:Play()
                         activeChatUserId = nil
@@ -1495,20 +1513,29 @@ local function ConnectWebSocket()
                 elseif data.type == "presence_update" then
                     local uidStr = tostring(data.userId)
                     presenceStatuses[uidStr] = data.status
-                    if activeChatUserId == uidStr then
+
+                    if data.status == "online" then
+                        print("[PRESENCE] Usuário online: " .. uidStr)
+                    else
+                        print("[PRESENCE] Usuário offline: " .. uidStr)
+                    end
+
+                    if tostring(activeChatUserId) == uidStr then
                         ChatStatus.Text = data.status
                     end
                 elseif data.type == "typing_status" then
                     local fromStr = tostring(data.fromUserId)
-                    if activeChatUserId == fromStr then
+                    if tostring(activeChatUserId) == fromStr then
                         ChatStatus.Text = data.isTyping and "digitando..." or (presenceStatuses[fromStr] or "online")
                     end
                 end
             end)
+        else
+            warn("[CHAT] Falha ao conectar ao servidor WebSocket: " .. tostring(SERVER_URL))
         end
     end
 end
 
--- Inicializa o Websocket e as listas vazias
+-- Inicialização
 UpdateNotifications()
 ConnectWebSocket()
