@@ -2,7 +2,7 @@
 -- CHAT UNIVERSAL - SCRIPT LUA (COMPLETO)
 -- ==========================================
 
-local WS_URL = "wss://SEU-APP-RENDER.onrender.com" -- ALTERE AQUI PARA SUA URL DO RENDER
+local WS_URL = "wss://chat-universal-online.onrender.com" -- ALTERE AQUI PARA SUA URL DO RENDER
 local GITHUB_REPO = "technomilgrau/Chat-universal"
 local GITHUB_API_URL = "https://api.github.com/repos/" .. GITHUB_REPO .. "/contents/Stickers"
 
