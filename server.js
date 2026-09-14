@@ -6,12 +6,12 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.get('/', (req, res) => res.send('Servidor Delta Universal Ativo'));
+app.get('/', (req, res) => res.send('Servidor Delta Universal Ativo - Status: Online'));
 
 const clients = new Map();
-const groups = new Map(); // id_grupo -> { owner, members: Set, bans: Set }
+const groups = new Map(); // id_grupo -> { owner, name, members: Set, bans: Set }
 
-// Heartbeat para evitar que a Render feche a conexão por inatividade
+// Sistema de Ping/Pong para evitar que a Render feche a conexão por inatividade (timeout de 60s)
 const interval = setInterval(() => {
     wss.clients.forEach((ws) => {
         if (ws.isAlive === false) return ws.terminate();
@@ -36,7 +36,7 @@ wss.on('connection', (ws) => {
                     broadcastUserList();
                     break;
 
-                // Sistema de Amizades
+                // Sistema de Amizades e Pesquisa
                 case 'friend_request':
                 case 'friend_accept':
                 case 'friend_decline':
@@ -54,24 +54,26 @@ wss.on('connection', (ws) => {
                     // Envia para o alvo (DM) ou processa para o Grupo
                     if (data.groupId) {
                         const group = groups.get(data.groupId);
-                        if (group) {
+                        if (group && group.members.has(currentUserId)) {
                             group.members.forEach(memberId => {
                                 sendTo(memberId, data);
                             });
                         }
                     } else if (data.targetId) {
                         sendTo(data.targetId, data);
-                        sendTo(currentUserId, data); // Retorna para o próprio usuário processar no json local
+                        sendTo(currentUserId, data); // Retorna para o remetente salvar localmente
                     }
                     break;
 
-                // Grupos
+                // Sistema de Grupos
                 case 'group_create':
                     groups.set(data.groupId, { 
                         owner: currentUserId, 
+                        name: data.groupName,
                         members: new Set([currentUserId]),
                         bans: new Set()
                     });
+                    sendTo(currentUserId, { type: 'group_sys_msg', msg: `Grupo '${data.groupName}' criado com sucesso!` });
                     break;
                     
                 case 'group_invite':
@@ -89,14 +91,28 @@ wss.on('connection', (ws) => {
                     
                 case 'group_kick':
                 case 'group_ban':
+                case 'group_unban':
                     if (groups.has(data.groupId) && groups.get(data.groupId).owner === currentUserId) {
-                        groups.get(data.groupId).members.delete(data.targetId);
-                        if (data.type === 'group_ban') groups.get(data.groupId).bans.add(data.targetId);
-                        sendTo(data.targetId, { type: 'group_kicked', groupId: data.groupId });
+                        if (data.type === 'group_unban') {
+                            groups.get(data.groupId).bans.delete(data.targetId);
+                            sendTo(currentUserId, { type: 'group_sys_msg', msg: `Usuário desbanido.` });
+                        } else {
+                            groups.get(data.groupId).members.delete(data.targetId);
+                            if (data.type === 'group_ban') groups.get(data.groupId).bans.add(data.targetId);
+                            sendTo(data.targetId, { type: 'group_kicked', groupId: data.groupId });
+                            broadcastToGroup(data.groupId, { type: 'group_sys_msg', msg: `Um usuário foi removido pelo dono.` });
+                        }
+                    }
+                    break;
+                    
+                case 'group_delete':
+                    if (groups.has(data.groupId) && groups.get(data.groupId).owner === currentUserId) {
+                        broadcastToGroup(data.groupId, { type: 'group_deleted', groupId: data.groupId });
+                        groups.delete(data.groupId);
                     }
                     break;
 
-                // Sistema de Clone R6/R15 e Animações
+                // Sistema de Clone e Sincronização (R6/R15)
                 case 'clone_invite':
                 case 'clone_accept':
                 case 'clone_cancel':
@@ -104,18 +120,18 @@ wss.on('connection', (ws) => {
                     break;
 
                 case 'sync_clone':
-                    sendTo(data.targetId, data); // Roteamento ultrarrápido dos dados JSON e CFrame
+                    sendTo(data.targetId, data); // Alta frequência (posição, animações)
                     break;
             }
         } catch (err) {
-            console.error('Erro:', err);
+            console.error('Erro de processamento:', err);
         }
     });
 
     ws.on('close', () => {
         if (currentUserId) {
             clients.delete(currentUserId);
-            // Remove de grupos
+            // Remove o usuário dos grupos ativos
             groups.forEach((group, groupId) => {
                 group.members.delete(currentUserId);
             });
@@ -150,4 +166,4 @@ function broadcastUserList() {
 
 server.on('close', () => clearInterval(interval));
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Delta Node rodando na porta ${PORT}`));
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
