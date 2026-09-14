@@ -1,4 +1,4 @@
-local RENDER_WEBSOCKET_URL = "https://chat-universal-k9at.onrender.com/" -- COLOQUE SEU LINK AQUI
+local RENDER_WEBSOCKET_URL = "wss://chat-universal-k9at.onrender.com" -- Link corrigido para protocolo WebSocket
 
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
