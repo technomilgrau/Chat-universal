@@ -35,6 +35,9 @@ function LoadLocalData()
         end)
         if success and result then
             LocalData = result
+            if not LocalData.recentStickers then
+                LocalData.recentStickers = {}
+            end
         end
     else
         SaveLocalData()
@@ -53,7 +56,6 @@ local presenceStatuses = {} -- [userId] = "online" | "offline" | "digitando..."
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChatUniversalUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
@@ -84,7 +86,7 @@ Title.TextSize = 20
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Position = UDim2.new(0, 16, 0, 12)
 Title.Size = UDim2.new(0, 200, 0, 22)
-Title.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
+Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
@@ -95,7 +97,7 @@ Subtitle.TextSize = 12
 Subtitle.TextColor3 = Color3.fromRGB(140, 140, 150)
 Subtitle.Position = UDim2.new(0, 16, 0, 34)
 Subtitle.Size = UDim2.new(0, 200, 0, 16)
-Subtitle.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
+Subtitle.BackgroundTransparency = 1
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
 Subtitle.Parent = Header
 
@@ -200,8 +202,6 @@ NotifScroll.Size = UDim2.new(1, -16, 1, -16)
 NotifScroll.Position = UDim2.new(0, 8, 0, 8)
 NotifScroll.BackgroundTransparency = 1
 NotifScroll.ZIndex = 11
-NotifScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-NotifScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 NotifScroll.Parent = NotificationsFrame
 
 local NotifLayout = Instance.new("UIListLayout")
@@ -261,7 +261,7 @@ ChatName.Position = UDim2.new(0, 90, 0, 10)
 ChatName.Font = Enum.Font.GothamBold
 ChatName.TextSize = 14
 ChatName.TextColor3 = Color3.fromRGB(255, 255, 255)
-ChatName.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
+ChatName.BackgroundTransparency = 1
 ChatName.TextXAlignment = Enum.TextXAlignment.Left
 ChatName.ZIndex = 21
 ChatName.Parent = ChatHeader
@@ -273,7 +273,7 @@ ChatStatus.Font = Enum.Font.Gotham
 ChatStatus.TextSize = 11
 ChatStatus.TextColor3 = Color3.fromRGB(140, 140, 150)
 ChatStatus.Text = "offline"
-ChatStatus.BackgroundTransparency = 1 -- FAIXA BRANCA REMOVIDA
+ChatStatus.BackgroundTransparency = 1
 ChatStatus.TextXAlignment = Enum.TextXAlignment.Left
 ChatStatus.ZIndex = 21
 ChatStatus.Parent = ChatHeader
@@ -321,6 +321,7 @@ ChatTextBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
 ChatTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ChatTextBox.Font = Enum.Font.Gotham
 ChatTextBox.TextSize = 13
+ChatTextBox.TextWrapped = true
 ChatTextBox.ZIndex = 21
 ChatTextBox.Parent = ChatInputFrame
 
@@ -334,6 +335,206 @@ SendBtn.Font = Enum.Font.GothamBold
 SendBtn.TextSize = 16
 SendBtn.ZIndex = 21
 SendBtn.Parent = ChatInputFrame
+
+-- PAINEL DE STICKERS (Aba estilo TikTok)
+local StickerPanel = Instance.new("Frame")
+StickerPanel.Size = UDim2.new(1, 0, 0, 250)
+StickerPanel.Position = UDim2.new(0, 0, 1, -298) -- Sobe e fica logo acima do input de texto
+StickerPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+StickerPanel.Visible = false
+StickerPanel.ZIndex = 22
+StickerPanel.Parent = ChatWindow
+
+local StickerPanelCorner = Instance.new("UICorner")
+StickerPanelCorner.CornerRadius = UDim.new(0, 12)
+StickerPanelCorner.Parent = StickerPanel
+
+local StickerScroll = Instance.new("ScrollingFrame")
+StickerScroll.Size = UDim2.new(1, -10, 1, -10)
+StickerScroll.Position = UDim2.new(0, 5, 0, 5)
+StickerScroll.BackgroundTransparency = 1
+StickerScroll.ScrollBarThickness = 2
+StickerScroll.ZIndex = 23
+StickerScroll.Parent = StickerPanel
+
+local StickerLayout = Instance.new("UIListLayout")
+StickerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+StickerLayout.Padding = UDim.new(0, 10)
+StickerLayout.Parent = StickerScroll
+
+local RecentLabel = Instance.new("TextLabel")
+RecentLabel.Size = UDim2.new(1, 0, 0, 20)
+RecentLabel.BackgroundTransparency = 1
+RecentLabel.Text = " Usado recentemente"
+RecentLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
+RecentLabel.Font = Enum.Font.Gotham
+RecentLabel.TextSize = 12
+RecentLabel.TextXAlignment = Enum.TextXAlignment.Left
+RecentLabel.LayoutOrder = 1
+RecentLabel.ZIndex = 23
+RecentLabel.Parent = StickerScroll
+
+local RecentGridFrame = Instance.new("Frame")
+RecentGridFrame.Size = UDim2.new(1, 0, 0, 70)
+RecentGridFrame.BackgroundTransparency = 1
+RecentGridFrame.LayoutOrder = 2
+RecentGridFrame.ZIndex = 23
+RecentGridFrame.Parent = StickerScroll
+
+local RecentGrid = Instance.new("UIGridLayout")
+RecentGrid.CellSize = UDim2.new(0, 65, 0, 65)
+RecentGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+RecentGrid.Parent = RecentGridFrame
+
+local AllLabel = Instance.new("TextLabel")
+AllLabel.Size = UDim2.new(1, 0, 0, 20)
+AllLabel.BackgroundTransparency = 1
+AllLabel.Text = " Salvo"
+AllLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
+AllLabel.Font = Enum.Font.Gotham
+AllLabel.TextSize = 12
+AllLabel.TextXAlignment = Enum.TextXAlignment.Left
+AllLabel.LayoutOrder = 3
+AllLabel.ZIndex = 23
+AllLabel.Parent = StickerScroll
+
+local AllGridFrame = Instance.new("Frame")
+AllGridFrame.Size = UDim2.new(1, 0, 0, 0)
+AllGridFrame.BackgroundTransparency = 1
+AllGridFrame.LayoutOrder = 4
+AllGridFrame.ZIndex = 23
+AllGridFrame.Parent = StickerScroll
+
+local AllGrid = Instance.new("UIGridLayout")
+AllGrid.CellSize = UDim2.new(0, 65, 0, 65)
+AllGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+AllGrid.Parent = AllGridFrame
+
+AllGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    AllGridFrame.Size = UDim2.new(1, 0, 0, AllGrid.AbsoluteContentSize.Y)
+    StickerScroll.CanvasSize = UDim2.new(0, 0, 0, RecentLabel.AbsoluteSize.Y + RecentGridFrame.AbsoluteSize.Y + AllLabel.AbsoluteSize.Y + AllGridFrame.AbsoluteSize.Y + 40)
+end)
+
+-- SISTEMA DE BAIXAR E CARREGAR IMAGENS
+local function GetStickerAsset(filename)
+    local stickerFolder = FOLDER_NAME .. "/Stickers"
+    if not isfolder(stickerFolder) then
+        makefolder(stickerFolder)
+    end
+    local filePath = stickerFolder .. "/" .. filename
+    if not isfile(filePath) then
+        local url = GITHUB_RAW_BASE .. filename
+        local success, imgData = pcall(function() return game:HttpGet(url) end)
+        if success and imgData then
+            writefile(filePath, imgData)
+        else
+            return ""
+        end
+    end
+    
+    local customAssetFunc = getcustomasset or getsynasset
+    if customAssetFunc then
+        return customAssetFunc(filePath)
+    end
+    return ""
+end
+
+local function AddRecentSticker(filename)
+    for i, v in ipairs(LocalData.recentStickers) do
+        if v == filename then
+            table.remove(LocalData.recentStickers, i)
+            break
+        end
+    end
+    table.insert(LocalData.recentStickers, 1, filename)
+    if #LocalData.recentStickers > 5 then
+        table.remove(LocalData.recentStickers, 6)
+    end
+    SaveLocalData()
+end
+
+local function SendSticker(filename)
+    if activeChatUserId and ws then
+        local idStr = tostring(activeChatUserId)
+        local newMsg = {sender = "me", type = "sticker", content = filename}
+
+        if not LocalData.chats[idStr] then LocalData.chats[idStr] = {} end
+        table.insert(LocalData.chats[idStr], newMsg)
+        AddRecentSticker(filename)
+        SaveLocalData()
+        RenderMessages(activeChatUserId)
+
+        ws:Send(HttpService:JSONEncode({
+            type = "send_message",
+            toUserId = idStr,
+            msgType = "sticker",
+            content = filename
+        }))
+    end
+end
+
+local function UpdateRecentStickersUI()
+    for _, child in pairs(RecentGridFrame:GetChildren()) do
+        if child:IsA("ImageButton") then child:Destroy() end
+    end
+    for _, filename in ipairs(LocalData.recentStickers) do
+        local btn = Instance.new("ImageButton")
+        btn.BackgroundTransparency = 1
+        btn.ZIndex = 24
+        btn.Parent = RecentGridFrame
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = btn
+
+        task.spawn(function()
+            btn.Image = GetStickerAsset(filename)
+        end)
+
+        btn.MouseButton1Click:Connect(function()
+            SendSticker(filename)
+            StickerPanel.Visible = false
+        end)
+    end
+end
+
+local stickersLoaded = false
+EmojiBtn.MouseButton1Click:Connect(function()
+    StickerPanel.Visible = not StickerPanel.Visible
+    if StickerPanel.Visible then
+        UpdateRecentStickersUI()
+        if not stickersLoaded then
+            stickersLoaded = true
+            task.spawn(function()
+                local success, res = pcall(function() return game:HttpGet(GITHUB_STICKERS_URL) end)
+                if success then
+                    local decoded = HttpService:JSONDecode(res)
+                    for _, file in ipairs(decoded) do
+                        if file.name:match("%.png$") or file.name:match("%.jpg$") or file.name:match("%.jpeg$") then
+                            local btn = Instance.new("ImageButton")
+                            btn.BackgroundTransparency = 1
+                            btn.ZIndex = 24
+                            btn.Parent = AllGridFrame
+
+                            local corner = Instance.new("UICorner")
+                            corner.CornerRadius = UDim.new(0, 8)
+                            corner.Parent = btn
+
+                            task.spawn(function()
+                                btn.Image = GetStickerAsset(file.name)
+                            end)
+
+                            btn.MouseButton1Click:Connect(function()
+                                SendSticker(file.name)
+                                StickerPanel.Visible = false
+                            end)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
 
 -- BARRA DE NAVEGAÇÃO INFERIOR
 local TabBar = Instance.new("Frame")
@@ -444,7 +645,6 @@ local function UpdateNotifications()
             local ReqFrame = Instance.new("Frame")
             ReqFrame.Size = UDim2.new(1, 0, 0, 50)
             ReqFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-            ReqFrame.ZIndex = 12
             ReqFrame.Parent = NotifScroll
             
             local ReqCorner = Instance.new("UICorner")
@@ -454,9 +654,8 @@ local function UpdateNotifications()
             local ReqAvatar = Instance.new("ImageLabel")
             ReqAvatar.Size = UDim2.new(0, 36, 0, 36)
             ReqAvatar.Position = UDim2.new(0, 8, 0, 7)
-            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(req.userId or req.id) .. "&width=420&height=420&format=png"
+            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. req.userId .. "&width=420&height=420&format=png"
             ReqAvatar.BackgroundTransparency = 1
-            ReqAvatar.ZIndex = 13
             ReqAvatar.Parent = ReqFrame
             
             local ReqAvatarCorner = Instance.new("UICorner")
@@ -467,12 +666,11 @@ local function UpdateNotifications()
             ReqName.Size = UDim2.new(0, 100, 0, 18)
             ReqName.Position = UDim2.new(0, 52, 0, 16)
             ReqName.BackgroundTransparency = 1
-            ReqName.Text = tostring(req.username or req.name or "Desconhecido")
+            ReqName.Text = req.username
             ReqName.Font = Enum.Font.GothamBold
             ReqName.TextSize = 13
             ReqName.TextColor3 = Color3.fromRGB(255, 255, 255)
             ReqName.TextXAlignment = Enum.TextXAlignment.Left
-            ReqName.ZIndex = 13
             ReqName.Parent = ReqFrame
             
             -- Botão Aceitar (Verde)
@@ -483,7 +681,6 @@ local function UpdateNotifications()
             AcceptBtn.Text = "✓"
             AcceptBtn.TextColor3 = Color3.fromRGB(255,255,255)
             AcceptBtn.Font = Enum.Font.GothamBold
-            AcceptBtn.ZIndex = 13
             AcceptBtn.Parent = ReqFrame
             
             local AcceptCorner = Instance.new("UICorner")
@@ -498,19 +695,21 @@ local function UpdateNotifications()
             DeclineBtn.Text = "✗"
             DeclineBtn.TextColor3 = Color3.fromRGB(255,255,255)
             DeclineBtn.Font = Enum.Font.GothamBold
-            DeclineBtn.ZIndex = 13
             DeclineBtn.Parent = ReqFrame
             
+            local DeclineCorner = Instance.new("UICorner")
+            DeclineCorner.CornerRadius = UDim.new(0, 6)
+            DeclineCorner.Parent = DeclineBtn
+            
             AcceptBtn.MouseButton1Click:Connect(function()
-                local targetId = req.userId or req.id
                 if ws then
                     ws:Send(HttpService:JSONEncode({
-                        type = "accept_friend",
-                        targetUserId = targetId
+                        type = "accept_friend_request",
+                        senderId = tostring(req.userId),
+                        username = LocalPlayer.Name
                     }))
                 end
-                -- Adiciona localmente caso o server atrase, para uso imediato
-                LocalData.friends[tostring(targetId)] = req.username or req.name or "Desconhecido"
+                LocalData.friends[tostring(req.userId)] = req.username
                 SaveLocalData()
                 
                 table.remove(friendRequests, i)
@@ -519,11 +718,10 @@ local function UpdateNotifications()
             end)
             
             DeclineBtn.MouseButton1Click:Connect(function()
-                local targetId = req.userId or req.id
                 if ws then
                     ws:Send(HttpService:JSONEncode({
                         type = "decline_friend",
-                        targetUserId = targetId
+                        targetUserId = req.userId
                     }))
                 end
                 table.remove(friendRequests, i)
@@ -588,7 +786,8 @@ function RenderSearchResults(results)
             if ws then
                 ws:Send(HttpService:JSONEncode({
                     type = "send_friend_request",
-                    targetUserId = user.userId
+                    targetUserId = tostring(user.userId),
+                    fromName = LocalPlayer.Name
                 }))
                 AddBtn.Text = "Enviado!"
                 AddBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
@@ -605,33 +804,57 @@ function RenderMessages(userId)
     local chatHistory = LocalData.chats[tostring(userId)] or {}
     for _, msg in ipairs(chatHistory) do
         local MsgFrame = Instance.new("Frame")
-        MsgFrame.Size = UDim2.new(1, 0, 0, 30)
         MsgFrame.BackgroundTransparency = 1
         MsgFrame.Parent = MessagesScroll
         
-        local Txt = Instance.new("TextLabel")
-        Txt.Text = msg.content
-        Txt.Font = Enum.Font.Gotham
-        Txt.TextSize = 13
-        Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Txt.BackgroundTransparency = 0
-        
-        local TxtCorner = Instance.new("UICorner")
-        TxtCorner.CornerRadius = UDim.new(0, 8)
-        TxtCorner.Parent = Txt
-        
-        local textWidth = string.len(msg.content) * 7 + 20
-        textWidth = math.clamp(textWidth, 40, 220)
-        Txt.Size = UDim2.new(0, textWidth, 1, 0)
-        
-        if msg.sender == "me" then
-            Txt.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
-            Txt.Position = UDim2.new(1, -textWidth, 0, 0)
+        if msg.type == "sticker" then
+            MsgFrame.Size = UDim2.new(1, 0, 0, 100)
+            
+            local StickerImg = Instance.new("ImageLabel")
+            StickerImg.Size = UDim2.new(0, 100, 0, 100)
+            StickerImg.BackgroundTransparency = 1
+            
+            local StickerCorner = Instance.new("UICorner")
+            StickerCorner.CornerRadius = UDim.new(0, 12)
+            StickerCorner.Parent = StickerImg
+            
+            if msg.sender == "me" then
+                StickerImg.Position = UDim2.new(1, -100, 0, 0)
+            else
+                StickerImg.Position = UDim2.new(0, 0, 0, 0)
+            end
+            StickerImg.Parent = MsgFrame
+            
+            task.spawn(function()
+                StickerImg.Image = GetStickerAsset(msg.content)
+            end)
         else
-            Txt.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-            Txt.Position = UDim2.new(0, 0, 0, 0)
+            -- Renderização Textual Normal
+            MsgFrame.Size = UDim2.new(1, 0, 0, 30)
+            local Txt = Instance.new("TextLabel")
+            Txt.Text = msg.content
+            Txt.Font = Enum.Font.Gotham
+            Txt.TextSize = 13
+            Txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Txt.BackgroundTransparency = 0
+            
+            local TxtCorner = Instance.new("UICorner")
+            TxtCorner.CornerRadius = UDim.new(0, 8)
+            TxtCorner.Parent = Txt
+            
+            local textWidth = string.len(msg.content) * 7 + 20
+            textWidth = math.clamp(textWidth, 40, 220)
+            Txt.Size = UDim2.new(0, textWidth, 1, 0)
+            
+            if msg.sender == "me" then
+                Txt.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+                Txt.Position = UDim2.new(1, -textWidth, 0, 0)
+            else
+                Txt.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+                Txt.Position = UDim2.new(0, 0, 0, 0)
+            end
+            Txt.Parent = MsgFrame
         end
-        Txt.Parent = MsgFrame
     end
     MessagesScroll.CanvasPosition = Vector2.new(0, 99999)
 end
@@ -663,6 +886,7 @@ end)
 BackBtn.MouseButton1Click:Connect(function()
     local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0)})
     tween:Play()
+    StickerPanel.Visible = false
     activeChatUserId = nil
 end)
 
@@ -682,8 +906,9 @@ SendBtn.MouseButton1Click:Connect(function()
         RenderMessages(activeChatUserId)
         
         ws:Send(HttpService:JSONEncode({
-            type = "private_message",
-            targetUserId = idStr,
+            type = "send_message",
+            toUserId = idStr,
+            msgType = "text",
             content = msgText
         }))
     end
@@ -726,11 +951,19 @@ local function ConnectWebSocket()
                 if data.type == "search_results" then
                     RenderSearchResults(data.results)
                 elseif data.type == "new_friend_request" then
-                    local newReq = data.request or {userId = data.userId, username = data.username}
-                    table.insert(friendRequests, newReq)
+                    table.insert(friendRequests, {
+                        userId = data.request.fromId,
+                        username = data.request.fromName
+                    })
                     UpdateNotifications()
                 elseif data.type == "friend_requests" then
-                    friendRequests = data.requests or {}
+                    friendRequests = {}
+                    for _, req in ipairs(data.requests) do
+                        table.insert(friendRequests, {
+                            userId = req.fromId,
+                            username = req.fromName
+                        })
+                    end
                     UpdateNotifications()
                 elseif data.type == "friend_accepted" then
                     LocalData.friends[tostring(data.userId)] = data.username
@@ -741,7 +974,11 @@ local function ConnectWebSocket()
                     if not LocalData.chats[idStr] then
                         LocalData.chats[idStr] = {}
                     end
-                    table.insert(LocalData.chats[idStr], {sender = "them", type = "text", content = data.content})
+                    table.insert(LocalData.chats[idStr], {
+                        sender = "them", 
+                        type = data.msgType or "text", 
+                        content = data.content
+                    })
                     SaveLocalData()
                     if activeChatUserId == idStr then
                         RenderMessages(idStr)
