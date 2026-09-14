@@ -6,10 +6,12 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.get('/', (req, res) => res.send('Delta Chat & Sync Server Ativo'));
+app.get('/', (req, res) => res.send('Delta Advanced Pairing Server Ativo'));
 
-const clients = new Map(); 
-const groups = new Map(); 
+// Estruturas de Dados
+const clients = new Map(); // userId -> ws, username
+const friends = new Map(); // userId -> Set(friendIds)
+const groups = new Map(); // groupId -> { name, owner, members: Set() }
 
 wss.on('connection', (ws) => {
     let currentUserId = null;
@@ -19,146 +21,152 @@ wss.on('connection', (ws) => {
             const data = JSON.parse(message);
 
             switch (data.type) {
-                case 'register':
+                case 'register': {
                     currentUserId = String(data.userId);
-                    clients.set(currentUserId, { ws, username: data.username, currentChat: null, currentGroup: null });
-                    broadcastUserList();
+                    clients.set(currentUserId, { ws, username: data.username, activeChat: null, activeGroup: null });
+                    if (!friends.has(currentUserId)) friends.set(currentUserId, new Set());
+                    broadcastUsers();
                     break;
+                }
 
-                // --- SISTEMA DE AMIZADES E 1v1 ---
-                case 'friend_request':
-                    sendTo(data.targetId, { type: 'friend_request', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                // --- SISTEMA DE AMIZADES ---
+                case 'friend_request': {
+                    sendTo(data.targetId, { type: 'notification', notifType: 'friend_request', senderId: currentUserId, senderName: clients.get(currentUserId).username });
                     break;
-                case 'friend_accept':
-                    sendTo(data.targetId, { type: 'friend_accept', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                }
+                case 'friend_accept': {
+                    friends.get(currentUserId).add(String(data.targetId));
+                    if (!friends.has(String(data.targetId))) friends.set(String(data.targetId), new Set());
+                    friends.get(String(data.targetId)).add(currentUserId);
+                    sendTo(data.targetId, { type: 'friend_added', friendId: currentUserId, friendName: clients.get(currentUserId).username });
+                    sendTo(currentUserId, { type: 'friend_added', friendId: data.targetId, friendName: data.targetName });
                     break;
-                case 'chat_invite':
-                    sendTo(data.targetId, { type: 'chat_invite', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                }
+
+                // --- BATE-PAPO PRIVADO (1v1) ---
+                case 'chat_invite': {
+                    sendTo(data.targetId, { type: 'notification', notifType: 'chat_invite', senderId: currentUserId, senderName: clients.get(currentUserId).username });
                     break;
-                case 'chat_accept':
-                    const user1 = clients.get(currentUserId);
-                    const user2 = clients.get(String(data.targetId));
-                    if (user1 && user2) {
-                        user1.currentChat = data.targetId;
-                        user2.currentChat = currentUserId;
-                        sendTo(currentUserId, { type: 'chat_connected', targetId: data.targetId, targetName: user2.username });
-                        sendTo(data.targetId, { type: 'chat_connected', targetId: currentUserId, targetName: user1.username });
+                }
+                case 'chat_accept': {
+                    const me = clients.get(currentUserId);
+                    const host = clients.get(data.hostId);
+                    if (me && host) {
+                        me.activeChat = data.hostId;
+                        host.activeChat = data.hostId; // O host é dono da sala
+                        sendTo(currentUserId, { type: 'chat_connected', hostId: data.hostId, hostName: host.username });
+                        sendTo(data.hostId, { type: 'chat_joined', userId: currentUserId, userName: me.username });
                     }
                     break;
-                case 'chat_leave':
-                    const leaver = clients.get(currentUserId);
-                    if (leaver && leaver.currentChat) {
-                        sendTo(leaver.currentChat, { type: 'chat_ended', reason: `${leaver.username} saiu do chat.` });
-                        const target = clients.get(leaver.currentChat);
-                        if (target) target.currentChat = null;
-                        leaver.currentChat = null;
+                }
+                case 'chat_leave': {
+                    const me = clients.get(currentUserId);
+                    if (me && me.activeChat) {
+                        sendTo(me.activeChat, { type: 'system_message', text: `${me.username} saiu do chat.` });
+                        me.activeChat = null;
                     }
                     break;
+                }
 
-                // --- SISTEMA DE GRUPOS ---
-                case 'create_group':
+                // --- GRUPOS ---
+                case 'group_create': {
                     const groupId = 'gp_' + Date.now();
-                    groups.set(groupId, { name: data.name, owner: currentUserId, members: [currentUserId], banned: [] });
-                    clients.get(currentUserId).currentGroup = groupId;
+                    groups.set(groupId, { name: data.name, owner: currentUserId, members: new Set([currentUserId]) });
+                    clients.get(currentUserId).activeGroup = groupId;
                     sendTo(currentUserId, { type: 'group_created', groupId, name: data.name });
                     break;
-                case 'invite_group':
+                }
+                case 'group_invite': {
+                    sendTo(data.targetId, { type: 'notification', notifType: 'group_invite', groupId: data.groupId, groupName: data.groupName, senderName: clients.get(currentUserId).username });
+                    break;
+                }
+                case 'group_accept': {
                     const gp = groups.get(data.groupId);
-                    if (gp && gp.owner === currentUserId && !gp.banned.includes(data.targetId)) {
-                        sendTo(data.targetId, { type: 'group_invite', groupId: data.groupId, name: gp.name, fromName: clients.get(currentUserId).username });
+                    if (gp) {
+                        gp.members.add(currentUserId);
+                        clients.get(currentUserId).activeGroup = data.groupId;
+                        gp.members.forEach(m => sendTo(m, { type: 'group_update', groupId: data.groupId, members: Array.from(gp.members) }));
                     }
                     break;
-                case 'accept_group':
-                    const grp = groups.get(data.groupId);
-                    if (grp) {
-                        grp.members.push(currentUserId);
-                        clients.get(currentUserId).currentGroup = data.groupId;
-                        broadcastToGroup(data.groupId, { type: 'group_msg', sender: 'Sistema', message: `${clients.get(currentUserId).username} entrou no grupo.` });
+                }
+                case 'group_action': { // Kick, Ban, Delete
+                    const gp = groups.get(data.groupId);
+                    if (gp && gp.owner === currentUserId) {
+                        if (data.action === 'delete') {
+                            gp.members.forEach(m => {
+                                clients.get(m).activeGroup = null;
+                                sendTo(m, { type: 'group_deleted' });
+                            });
+                            groups.delete(data.groupId);
+                        } else if (data.action === 'kick' || data.action === 'ban') {
+                            gp.members.delete(data.targetId);
+                            clients.get(data.targetId).activeGroup = null;
+                            sendTo(data.targetId, { type: 'group_kicked' });
+                            gp.members.forEach(m => sendTo(m, { type: 'system_message', text: `${data.targetName} foi removido do grupo.` }));
+                        }
                     }
                     break;
-                case 'kick_group':
-                case 'ban_group':
-                    const mGrp = groups.get(data.groupId);
-                    if (mGrp && mGrp.owner === currentUserId) {
-                        mGrp.members = mGrp.members.filter(id => id !== data.targetId);
-                        if (data.type === 'ban_group') mGrp.banned.push(data.targetId);
-                        sendTo(data.targetId, { type: 'kicked_group', reason: data.type === 'ban_group' ? 'Você foi Banido' : 'Você foi Expulso' });
-                        if(clients.has(data.targetId)) clients.get(data.targetId).currentGroup = null;
-                    }
-                    break;
-                case 'unban_group':
-                    const ubGrp = groups.get(data.groupId);
-                    if (ubGrp && ubGrp.owner === currentUserId) {
-                        ubGrp.banned = ubGrp.banned.filter(id => id !== data.targetId);
-                    }
-                    break;
-                case 'delete_group':
-                    if (groups.has(data.groupId) && groups.get(data.groupId).owner === currentUserId) {
-                        broadcastToGroup(data.groupId, { type: 'group_deleted' });
-                        groups.get(data.groupId).members.forEach(id => { if (clients.has(id)) clients.get(id).currentGroup = null; });
-                        groups.delete(data.groupId);
-                    }
-                    break;
+                }
 
-                // --- MENSAGENS, STICKERS E DADOS ---
-                case 'chat_msg':
-                    const senderData = clients.get(currentUserId);
-                    if (senderData.currentChat) {
-                        const payload = { type: 'chat_msg', sender: senderData.username, message: data.message, sticker: data.sticker };
-                        sendTo(currentUserId, payload);
-                        sendTo(senderData.currentChat, payload);
-                    } else if (senderData.currentGroup) {
-                        broadcastToGroup(senderData.currentGroup, { type: 'group_msg', sender: senderData.username, message: data.message, sticker: data.sticker });
+                // --- MENSAGENS E STICKERS ---
+                case 'send_message': {
+                    const payload = { type: 'message', senderId: currentUserId, senderName: clients.get(currentUserId).username, content: data.content, isSticker: data.isSticker };
+                    
+                    if (data.context === 'private') {
+                        const hostId = clients.get(currentUserId).activeChat;
+                        if (hostId) {
+                            sendTo(hostId, payload); // Envia pro host
+                            // O host precisa repassar se houver outra pessoa (mas no 1v1 é só o host e o guest)
+                            clients.forEach((c, id) => { if (c.activeChat === hostId && id !== hostId) sendTo(id, payload); });
+                        }
+                    } else if (data.context === 'group') {
+                        const gp = groups.get(data.groupId);
+                        if (gp) {
+                            gp.members.forEach(m => sendTo(m, payload));
+                        }
                     }
                     break;
+                }
 
-                // --- SISTEMA DE CLONES ---
-                case 'clone_invite':
-                    sendTo(data.targetId, { type: 'clone_invite', fromId: currentUserId, fromName: clients.get(currentUserId).username });
+                // --- SISTEMA DE CLONE ---
+                case 'clone_request': {
+                    sendTo(data.targetId, { type: 'notification', notifType: 'clone_request', senderId: currentUserId, senderName: clients.get(currentUserId).username });
                     break;
-                case 'clone_accept':
-                    sendTo(data.targetId, { type: 'clone_accepted', fromId: currentUserId, targetName: clients.get(currentUserId).username });
+                }
+                case 'clone_accept': {
+                    sendTo(data.hostId, { type: 'clone_start', targetId: currentUserId });
+                    sendTo(currentUserId, { type: 'clone_start', targetId: data.hostId });
                     break;
-                case 'clone_cancel':
-                    sendTo(data.targetId, { type: 'clone_cancelled' });
+                }
+                case 'clone_sync': {
+                    // Repassa dados de animação e CFrame
+                    sendTo(data.targetId, { type: 'clone_update', cframe: data.cframe, anims: data.anims, senderId: currentUserId });
                     break;
-                case 'sync_transform': 
-                    if (data.targetId) {
-                        sendTo(data.targetId, { type: 'sync_update', cframe: data.cframe, chatBubble: data.chatBubble });
-                    }
-                    break;
+                }
             }
-        } catch (err) {
-            console.error('Erro:', err);
-        }
+        } catch (err) {}
     });
 
     ws.on('close', () => {
         if (currentUserId) {
-            const user = clients.get(currentUserId);
-            if (user && user.currentChat) {
-                sendTo(user.currentChat, { type: 'chat_ended', reason: 'Usuário desconectado.' });
-                const target = clients.get(user.currentChat);
-                if (target) target.currentChat = null;
-            }
             clients.delete(currentUserId);
-            broadcastUserList();
+            broadcastUsers();
         }
     });
 });
 
 function sendTo(userId, data) {
     const client = clients.get(String(userId));
-    if (client && client.ws.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify(data));
+    if (client && client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(data));
+    }
 }
-function broadcastToGroup(groupId, data) {
-    const gp = groups.get(groupId);
-    if (gp) gp.members.forEach(id => sendTo(id, data));
-}
-function broadcastUserList() {
-    const userList = Array.from(clients.entries()).map(([id, val]) => ({ userId: id, username: val.username }));
-    const payload = JSON.stringify({ type: 'user_list', users: userList });
-    clients.forEach(c => { if (c.ws.readyState === WebSocket.OPEN) c.ws.send(payload); });
+
+function broadcastUsers() {
+    const userList = [];
+    clients.forEach((val, key) => userList.push({ userId: key, username: val.username }));
+    const payload = JSON.stringify({ type: 'users_list', users: userList });
+    clients.forEach(client => { if (client.ws.readyState === WebSocket.OPEN) client.ws.send(payload); });
 }
 
 const PORT = process.env.PORT || 3000;
