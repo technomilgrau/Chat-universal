@@ -1,14 +1,12 @@
 {
   "name": "mbchat-universal-server",
-  "version": "1.0.0",
-  "description": "Servidor WebSocket para o chat universal do Roblox",
+  "version": "2.0.0",
+  "description": "Servidor WebSocket de sincronização para MBChat",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "uuid": "^9.0.0",
-    "ws": "^8.13.0"
+    "ws": "^8.16.0"
   }
 }
