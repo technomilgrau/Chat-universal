@@ -1,142 +1,214 @@
-const express = require('express');
-const { WebSocketServer, WebSocket } = require('ws');
-const http = require('http');
+// Server Node.js para Chat Universal
+// Suporte a WebSocket, Presença Online/Offline em Tempo Real e Roteamento
+const { WebSocketServer } = require('ws');
 
-const app = express();
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const PORT = process.env.PORT || 8080;
+const wss = new WebSocketServer({ port: PORT });
 
-// Armazena conexões ativas: { userId: { ws, username, status: 'online' | 'typing' } }
-const clients = new Map();
-// Armazena notificações pendentes em memória enquanto o server rodar
-const pendingRequests = new Map(); // targetUserId -> Array of senderData
+// Mapeamento: userId (string) -> { ws: WebSocket, username: string, displayName: string }
+const connectedUsers = new Map();
 
-wss.on('connection', (ws) => {
-    let currentUserId = null;
-
-    ws.on('message', (message) => {
-        try {
-            const data = JSON.parse(message);
-
-            switch (data.type) {
-                case 'register':
-                    currentUserId = String(data.userId);
-                    clients.set(currentUserId, {
-                        ws,
-                        username: data.username,
-                        status: 'online'
-                    });
-                    
-                    // Notifica amigos que ficou online
-                    broadcastPresence(currentUserId, 'online');
-
-                    // Envia solicitações pendentes
-                    if (pendingRequests.has(currentUserId)) {
-                        ws.send(JSON.stringify({
-                            type: 'friend_requests',
-                            requests: pendingRequests.get(currentUserId)
-                        }));
-                    }
-                    break;
-
-                case 'search_users':
-                    const query = data.query.toLowerCase();
-                    const results = [];
-                    for (let [id, client] of clients.entries()) {
-                        if (id !== currentUserId && client.username.toLowerCase().includes(query)) {
-                            results.push({ userId: id, username: client.username });
-                        }
-                    }
-                    ws.send(JSON.stringify({ type: 'search_results', results }));
-                    break;
-
-                case 'send_friend_request':
-                    const targetId = String(data.targetUserId);
-                    const reqData = { fromId: currentUserId, fromName: data.fromName };
-
-                    if (clients.has(targetId)) {
-                        clients.get(targetId).ws.send(JSON.stringify({
-                            type: 'new_friend_request',
-                            request: reqData
-                        }));
-                    } else {
-                        if (!pendingRequests.has(targetId)) pendingRequests.set(targetId, []);
-                        pendingRequests.get(targetId).push(reqData);
-                    }
-                    break;
-
-                case 'accept_friend_request':
-                    // Notifica quem enviou que o pedido foi aceito
-                    const sender = clients.get(String(data.senderId));
-                    if (sender) {
-                        sender.ws.send(JSON.stringify({
-                            type: 'friend_accepted',
-                            userId: currentUserId,
-                            username: data.username
-                        }));
-                    }
-                    break;
-
-                case 'send_message':
-                    // Repassa a mensagem direto para o destinatário (Sem salvar no servidor)
-                    const receiver = clients.get(String(data.toUserId));
-                    if (receiver && receiver.ws.readyState === WebSocket.OPEN) {
-                        receiver.ws.send(JSON.stringify({
-                            type: 'private_message',
-                            fromUserId: currentUserId,
-                            msgType: data.msgType, // 'text' ou 'sticker'
-                            content: data.content,
-                            timestamp: Date.now()
-                        }));
-                    }
-                    break;
-
-                case 'typing_status':
-                    const peer = clients.get(String(data.toUserId));
-                    if (peer && peer.ws.readyState === WebSocket.OPEN) {
-                        peer.ws.send(JSON.stringify({
-                            type: 'typing_status',
-                            fromUserId: currentUserId,
-                            isTyping: data.isTyping
-                        }));
-                    }
-                    break;
-
-                case 'check_status':
-                    const isOnline = clients.has(String(data.targetUserId));
-                    ws.send(JSON.stringify({
-                        type: 'presence_update',
-                        userId: data.targetUserId,
-                        status: isOnline ? 'online' : 'offline'
-                    }));
-                    break;
-            }
-        } catch (err) {
-            console.error('Erro ao processar mensagem:', err);
-        }
-    });
-
-    ws.on('close', () => {
-        if (currentUserId) {
-            clients.delete(currentUserId);
-            broadcastPresence(currentUserId, 'offline');
-        }
-    });
-});
+console.log(`[SERVIDOR] Servidor WebSocket iniciado na porta ${PORT}`);
 
 function broadcastPresence(userId, status) {
-    for (let [id, client] of clients.entries()) {
-        if (id !== userId && client.ws.readyState === WebSocket.OPEN) {
-            client.ws.send(JSON.stringify({
-                type: 'presence_update',
-                userId,
-                status
-            }));
+    const payload = JSON.stringify({
+        type: 'presence_update',
+        userId: String(userId),
+        status: status
+    });
+
+    for (const [id, user] of connectedUsers.entries()) {
+        if (id !== String(userId) && user.ws.readyState === 1) {
+            user.ws.send(payload);
         }
     }
 }
 
-app.get('/', (req, res) => res.send('Servidor Chat Universal Ativo!'));
+wss.on('connection', (ws) => {
+    let clientUserId = null;
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            if (!data || !data.type) return;
+
+            // 1. REGISTRO DE USUÁRIO
+            if (data.type === 'register') {
+                clientUserId = String(data.userId);
+                connectedUsers.set(clientUserId, {
+                    ws: ws,
+                    username: data.username || 'Desconhecido',
+                    displayName: data.displayName || data.username || 'Desconhecido'
+                });
+
+                console.log(`[PRESENCE] Usuário registrado: ${data.username} (${clientUserId})`);
+                console.log(`[PRESENCE] Usuário online: ${clientUserId}`);
+
+                // Envia para o novo usuário o status ONLINE de todos os usuários já conectados
+                for (const [existingId, existingUser] of connectedUsers.entries()) {
+                    if (existingId !== clientUserId) {
+                        ws.send(JSON.stringify({
+                            type: 'presence_update',
+                            userId: String(existingId),
+                            status: 'online'
+                        }));
+                    }
+                }
+
+                // Notifica todos os outros usuários que este cliente está ONLINE
+                broadcastPresence(clientUserId, 'online');
+            }
+
+            // 2. ENVIO DE MENSAGENS (TEXTO E STICKER)
+            else if (data.type === 'send_message') {
+                const targetId = String(data.toUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                console.log(`[CHAT] Enviando mensagem de ${clientUserId} para ${targetId}`);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'private_message',
+                        fromUserId: clientUserId,
+                        msgId: data.msgId,
+                        msgType: data.msgType || 'text',
+                        content: data.content,
+                        fromName: data.fromName,
+                        fromDisplayName: data.fromDisplayName
+                    }));
+                }
+            }
+
+            // 3. DIGITANDO...
+            else if (data.type === 'typing') {
+                const targetId = String(data.toUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'typing_status',
+                        fromUserId: clientUserId,
+                        isTyping: !!data.isTyping
+                    }));
+                }
+            }
+
+            // 4. SOLICITAÇÃO DE AMIZADE
+            else if (data.type === 'send_friend_request') {
+                const targetId = String(data.targetUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'new_friend_request',
+                        fromId: clientUserId,
+                        fromName: data.fromName,
+                        fromDisplayName: data.fromDisplayName
+                    }));
+                }
+            }
+
+            // 5. ACEITAR AMIZADE
+            else if (data.type === 'accept_friend_request') {
+                const senderId = String(data.senderId);
+                const senderUser = connectedUsers.get(senderId);
+
+                if (senderUser && senderUser.ws.readyState === 1) {
+                    senderUser.ws.send(JSON.stringify({
+                        type: 'friend_accepted',
+                        userId: clientUserId,
+                        username: data.username,
+                        displayName: data.displayName
+                    }));
+                }
+            }
+
+            // 6. EDITAR MENSAGEM
+            else if (data.type === 'edit_message') {
+                const targetId = String(data.toUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'message_edited',
+                        fromUserId: clientUserId,
+                        msgId: data.msgId,
+                        content: data.content
+                    }));
+                }
+            }
+
+            // 7. APAGAR MENSAGEM
+            else if (data.type === 'delete_message') {
+                const targetId = String(data.toUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'message_deleted',
+                        fromUserId: clientUserId,
+                        msgId: data.msgId
+                    }));
+                }
+            }
+
+            // 8. DESFAZER AMIZADE
+            else if (data.type === 'unfriend') {
+                const targetId = String(data.targetUserId);
+                const targetUser = connectedUsers.get(targetId);
+
+                if (targetUser && targetUser.ws.readyState === 1) {
+                    targetUser.ws.send(JSON.stringify({
+                        type: 'unfriended',
+                        fromUserId: clientUserId
+                    }));
+                }
+            }
+
+            // 9. PESQUISAR USUÁRIOS CONECTADOS
+            else if (data.type === 'search_users') {
+                const query = String(data.query || '').toLowerCase();
+                const results = [];
+
+                for (const [id, user] of connectedUsers.entries()) {
+                    if (id !== clientUserId) {
+                        const uName = (user.username || '').toLowerCase();
+                        const dName = (user.displayName || '').toLowerCase();
+                        if (uName.includes(query) || dName.includes(query)) {
+                            results.push({
+                                userId: id,
+                                username: user.username,
+                                displayName: user.displayName
+                            });
+                        }
+                    }
+                }
+
+                ws.send(JSON.stringify({
+                    type: 'search_results',
+                    results: results
+                }));
+            }
+
+        } catch (err) {
+            console.error('[ERRO SERVIDOR] Erro ao processar mensagem:', err);
+        }
+    });
+
+    ws.on('close', () => {
+        if (clientUserId) {
+            console.log(`[PRESENCE] Usuário desconectado: ${clientUserId}`);
+            console.log(`[PRESENCE] Usuário offline: ${clientUserId}`);
+            connectedUsers.delete(clientUserId);
+            broadcastPresence(clientUserId, 'offline');
+        }
+    });
+
+    ws.on('error', (error) => {
+        console.error(`[WS ERRO] Ocorreu um erro no socket do cliente ${clientUserId}:`, error);
+        if (clientUserId) {
+            connectedUsers.delete(clientUserId);
+            broadcastPresence(clientUserId, 'offline');
+        }
+    });
+});
