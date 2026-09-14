@@ -1,132 +1,142 @@
-const { WebSocketServer } = require('ws');
+const express = require('express');
+const { WebSocketServer, WebSocket } = require('ws');
 const http = require('http');
 
-const PORT = process.env.PORT || 8080;
-const server = http.createServer((req, res) => res.end('MBChat WS Server Online'));
+const app = express();
+const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Estado volátil do servidor
-const users = new Map(); // ws -> userId
-const connections = new Map(); // userId -> ws
-const groups = new Map(); // groupId -> { ownerId, members: Set, banned: Set }
+// Armazena conexões ativas: { userId: { ws, username, status: 'online' | 'typing' } }
+const clients = new Map();
+// Armazena notificações pendentes em memória enquanto o server rodar
+const pendingRequests = new Map(); // targetUserId -> Array of senderData
 
 wss.on('connection', (ws) => {
+    let currentUserId = null;
+
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            const userId = users.get(ws);
 
             switch (data.type) {
                 case 'register':
-                    users.set(ws, data.userId);
-                    connections.set(data.userId, ws);
-                    break;
-
-                // --- SISTEMA DE AMIZADES ---
-                case 'friend_request':
-                case 'friend_accept':
-                case 'friend_reject':
-                    sendToUser(data.targetId, { ...data, fromId: userId });
-                    break;
-
-                // --- SISTEMA DE CHAT PRIVADO ---
-                case 'chat_invite':
-                case 'chat_invite_accept':
-                case 'chat_leave':
-                case 'chat_message':
-                case 'sticker_message':
-                    // Encaminha para o alvo (targetId)
-                    sendToUser(data.targetId, { ...data, fromId: userId });
-                    break;
-
-                // --- SISTEMA DE GRUPOS ---
-                case 'group_create':
-                    groups.set(data.groupId, {
-                        ownerId: userId,
-                        members: new Set([userId]),
-                        banned: new Set()
+                    currentUserId = String(data.userId);
+                    clients.set(currentUserId, {
+                        ws,
+                        username: data.username,
+                        status: 'online'
                     });
-                    break;
+                    
+                    // Notifica amigos que ficou online
+                    broadcastPresence(currentUserId, 'online');
 
-                case 'group_invite':
-                    if (groups.has(data.groupId) && groups.get(data.groupId).members.has(userId)) {
-                        sendToUser(data.targetId, { ...data, fromId: userId });
+                    // Envia solicitações pendentes
+                    if (pendingRequests.has(currentUserId)) {
+                        ws.send(JSON.stringify({
+                            type: 'friend_requests',
+                            requests: pendingRequests.get(currentUserId)
+                        }));
                     }
                     break;
 
-                case 'group_invite_accept':
-                    if (groups.has(data.groupId)) {
-                        const group = groups.get(data.groupId);
-                        if (!group.banned.has(userId)) {
-                            group.members.add(userId);
-                            broadcastToGroup(data.groupId, { ...data, newMemberId: userId });
+                case 'search_users':
+                    const query = data.query.toLowerCase();
+                    const results = [];
+                    for (let [id, client] of clients.entries()) {
+                        if (id !== currentUserId && client.username.toLowerCase().includes(query)) {
+                            results.push({ userId: id, username: client.username });
                         }
                     }
+                    ws.send(JSON.stringify({ type: 'search_results', results }));
                     break;
 
-                case 'group_message':
-                case 'group_background':
-                    if (groups.has(data.groupId) && groups.get(data.groupId).members.has(userId)) {
-                        broadcastToGroup(data.groupId, { ...data, fromId: userId }, userId);
+                case 'send_friend_request':
+                    const targetId = String(data.targetUserId);
+                    const reqData = { fromId: currentUserId, fromName: data.fromName };
+
+                    if (clients.has(targetId)) {
+                        clients.get(targetId).ws.send(JSON.stringify({
+                            type: 'new_friend_request',
+                            request: reqData
+                        }));
+                    } else {
+                        if (!pendingRequests.has(targetId)) pendingRequests.set(targetId, []);
+                        pendingRequests.get(targetId).push(reqData);
                     }
                     break;
 
-                case 'group_kick':
-                case 'group_ban':
-                case 'group_unban':
-                case 'group_delete_request':
-                case 'group_delete_confirm':
-                    if (groups.has(data.groupId)) {
-                        const group = groups.get(data.groupId);
-                        if (group.ownerId === userId) { // VALIDAÇÃO DE AUTORIDADE
-                            if (data.type === 'group_ban') group.banned.add(data.targetId);
-                            if (data.type === 'group_unban') group.banned.delete(data.targetId);
-                            if (['group_kick', 'group_ban'].includes(data.type)) group.members.delete(data.targetId);
-                            
-                            broadcastToGroup(data.groupId, { ...data, fromId: userId });
-                            
-                            if (data.type === 'group_delete_confirm') groups.delete(data.groupId);
-                        }
+                case 'accept_friend_request':
+                    // Notifica quem enviou que o pedido foi aceito
+                    const sender = clients.get(String(data.senderId));
+                    if (sender) {
+                        sender.ws.send(JSON.stringify({
+                            type: 'friend_accepted',
+                            userId: currentUserId,
+                            username: data.username
+                        }));
                     }
                     break;
 
-                // --- SISTEMA DE CLONE ---
-                case 'clone_invite':
-                case 'clone_accept':
-                case 'clone_reject':
-                case 'clone_cancel':
-                    sendToUser(data.targetId, { ...data, fromId: userId });
+                case 'send_message':
+                    // Repassa a mensagem direto para o destinatário (Sem salvar no servidor)
+                    const receiver = clients.get(String(data.toUserId));
+                    if (receiver && receiver.ws.readyState === WebSocket.OPEN) {
+                        receiver.ws.send(JSON.stringify({
+                            type: 'private_message',
+                            fromUserId: currentUserId,
+                            msgType: data.msgType, // 'text' ou 'sticker'
+                            content: data.content,
+                            timestamp: Date.now()
+                        }));
+                    }
+                    break;
+
+                case 'typing_status':
+                    const peer = clients.get(String(data.toUserId));
+                    if (peer && peer.ws.readyState === WebSocket.OPEN) {
+                        peer.ws.send(JSON.stringify({
+                            type: 'typing_status',
+                            fromUserId: currentUserId,
+                            isTyping: data.isTyping
+                        }));
+                    }
+                    break;
+
+                case 'check_status':
+                    const isOnline = clients.has(String(data.targetUserId));
+                    ws.send(JSON.stringify({
+                        type: 'presence_update',
+                        userId: data.targetUserId,
+                        status: isOnline ? 'online' : 'offline'
+                    }));
                     break;
             }
-        } catch (e) {
-            console.error('Erro ao processar mensagem', e);
+        } catch (err) {
+            console.error('Erro ao processar mensagem:', err);
         }
     });
 
     ws.on('close', () => {
-        const userId = users.get(ws);
-        if (userId) {
-            users.delete(ws);
-            connections.delete(userId);
+        if (currentUserId) {
+            clients.delete(currentUserId);
+            broadcastPresence(currentUserId, 'offline');
         }
     });
 });
 
-function sendToUser(userId, data) {
-    const ws = connections.get(userId);
-    if (ws && ws.readyState === 1) {
-        ws.send(JSON.stringify(data));
+function broadcastPresence(userId, status) {
+    for (let [id, client] of clients.entries()) {
+        if (id !== userId && client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({
+                type: 'presence_update',
+                userId,
+                status
+            }));
+        }
     }
 }
 
-function broadcastToGroup(groupId, data, excludeUserId = null) {
-    const group = groups.get(groupId);
-    if (!group) return;
-    group.members.forEach(memberId => {
-        if (memberId !== excludeUserId) {
-            sendToUser(memberId, data);
-        }
-    });
-}
+app.get('/', (req, res) => res.send('Servidor Chat Universal Ativo!'));
 
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
