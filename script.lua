@@ -433,7 +433,7 @@ EmojiBtn.ZIndex = 21
 EmojiBtn.Parent = ChatInputFrame
 
 local ChatTextBox = Instance.new("TextBox")
-ChatTextBox.Size = UDim2.new(1, -85, 1, 0)
+ChatTextBox.Size = UDim2.new(1, -95, 1, 0) -- Ajustado para caber o novo botão Enviar
 ChatTextBox.Position = UDim2.new(0, 42, 0, 0)
 ChatTextBox.BackgroundTransparency = 1
 ChatTextBox.PlaceholderText = "Mensagem..."
@@ -445,16 +445,22 @@ ChatTextBox.TextWrapped = true
 ChatTextBox.ZIndex = 21
 ChatTextBox.Parent = ChatInputFrame
 
+-- NOVO BOTÃO DE ENVIAR
 local SendBtn = Instance.new("TextButton")
-SendBtn.Size = UDim2.new(0, 30, 0, 30)
-SendBtn.Position = UDim2.new(1, -35, 0, 6)
-SendBtn.BackgroundTransparency = 1
-SendBtn.Text = "➔"
-SendBtn.TextColor3 = Color3.fromRGB(0, 140, 255)
+SendBtn.Size = UDim2.new(0, 46, 0, 26) -- Azul, formato botão
+SendBtn.Position = UDim2.new(1, -52, 0, 8)
+SendBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+SendBtn.BackgroundTransparency = 0
+SendBtn.Text = "enviar"
+SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SendBtn.Font = Enum.Font.GothamBold
-SendBtn.TextSize = 16
+SendBtn.TextSize = 11
 SendBtn.ZIndex = 21
 SendBtn.Parent = ChatInputFrame
+
+local SendBtnCorner = Instance.new("UICorner")
+SendBtnCorner.CornerRadius = UDim.new(0, 6)
+SendBtnCorner.Parent = SendBtn
 
 -- PAINEL DE STICKERS (Aba estilo TikTok)
 local StickerPanel = Instance.new("Frame")
@@ -574,7 +580,7 @@ local function AddRecentSticker(filename)
 end
 
 local function SendSticker(filename)
-    if activeChatUserId and ws then
+    if activeChatUserId then -- Removida trava de ws
         local idStr = tostring(activeChatUserId)
         local newMsg = {id = GenerateMessageID(), sender = "me", type = "sticker", content = filename, timestamp = os.time(), isDeleted = false, isEdited = false}
 
@@ -584,15 +590,17 @@ local function SendSticker(filename)
         SaveLocalData()
         RenderMessages(activeChatUserId)
 
-        ws:Send(HttpService:JSONEncode({
-            type = "send_message",
-            toUserId = idStr,
-            msgId = newMsg.id,
-            msgType = "sticker",
-            content = filename,
-            fromName = LocalPlayer.Name,
-            fromDisplayName = LocalPlayer.DisplayName
-        }))
+        if ws then
+            ws:Send(HttpService:JSONEncode({
+                type = "send_message",
+                toUserId = idStr,
+                msgId = newMsg.id,
+                msgType = "sticker",
+                content = filename,
+                fromName = LocalPlayer.Name,
+                fromDisplayName = LocalPlayer.DisplayName
+            }))
+        end
     end
 end
 
@@ -1188,7 +1196,7 @@ EditBtn.MouseButton1Click:Connect(function()
             if m.id == contextTargetMsgId and m.type == "text" then
                 ChatTextBox.Text = m.content
                 editingMessageId = m.id
-                SendBtn.Text = "✓"
+                SendBtn.Text = "salvar"
                 break
             end
         end
@@ -1226,11 +1234,11 @@ BackBtn.MouseButton1Click:Connect(function()
     StickerPanel.Visible = false
     activeChatUserId = nil
     editingMessageId = nil
-    SendBtn.Text = "➔"
+    SendBtn.Text = "enviar"
 end)
 
 SendBtn.MouseButton1Click:Connect(function()
-    if activeChatUserId and ChatTextBox.Text ~= "" and ws then
+    if activeChatUserId and ChatTextBox.Text ~= "" then -- Removida a obrigatoriedade estrita da internet aqui
         local msgText = ChatTextBox.Text
         ChatTextBox.Text = ""
         local idStr = tostring(activeChatUserId)
@@ -1245,14 +1253,16 @@ SendBtn.MouseButton1Click:Connect(function()
                     break
                 end
             end
-            ws:Send(HttpService:JSONEncode({
-                type = "edit_message",
-                toUserId = idStr,
-                msgId = editingMessageId,
-                content = msgText
-            }))
+            if ws then
+                ws:Send(HttpService:JSONEncode({
+                    type = "edit_message",
+                    toUserId = idStr,
+                    msgId = editingMessageId,
+                    content = msgText
+                }))
+            end
             editingMessageId = nil
-            SendBtn.Text = "➔"
+            SendBtn.Text = "enviar"
         else
             -- Lógica Normal de Envio
             local newMsg = {id = GenerateMessageID(), sender = "me", type = "text", content = msgText, timestamp = os.time(), isDeleted = false, isEdited = false}
@@ -1262,15 +1272,17 @@ SendBtn.MouseButton1Click:Connect(function()
             end
             table.insert(LocalData.chats[idStr], newMsg)
             
-            ws:Send(HttpService:JSONEncode({
-                type = "send_message",
-                toUserId = idStr,
-                msgId = newMsg.id,
-                msgType = "text",
-                content = msgText,
-                fromName = LocalPlayer.Name,
-                fromDisplayName = LocalPlayer.DisplayName
-            }))
+            if ws then
+                ws:Send(HttpService:JSONEncode({
+                    type = "send_message",
+                    toUserId = idStr,
+                    msgId = newMsg.id,
+                    msgType = "text",
+                    content = msgText,
+                    fromName = LocalPlayer.Name,
+                    fromDisplayName = LocalPlayer.DisplayName
+                }))
+            end
         end
         
         SaveLocalData()
@@ -1293,118 +1305,140 @@ SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- WEBSOCKET INICIALIZAÇÃO
+-- WEBSOCKET INICIALIZAÇÃO - AGORA COM RECONEXÃO AUTOMÁTICA
+local isConnecting = false
 local function ConnectWebSocket()
-    if WebSocket and WebSocket.connect then
-        local success, connection = pcall(function()
-            return WebSocket.connect(SERVER_URL)
-        end)
-
-        if success then
-            ws = connection
-            -- Registrar Usuário no Servidor (agora envia DisplayName e Name reais)
-            ws:Send(HttpService:JSONEncode({
-                type = "register",
-                userId = tostring(LocalPlayer.UserId),
-                username = LocalPlayer.Name,
-                displayName = LocalPlayer.DisplayName
-            }))
-
-            ws.OnMessage:Connect(function(msg)
-                local data = HttpService:JSONDecode(msg)
-
-                if data.type == "search_results" then
-                    RenderSearchResults(data.results)
-                elseif data.type == "new_friend_request" then
-                    -- Garantindo que ele pegue os dados com segurança não importa como o Node mandou
-                    table.insert(friendRequests, {
-                        userId = data.fromId or (data.request and data.request.fromId),
-                        username = data.fromName or (data.request and data.request.fromName),
-                        displayName = data.fromDisplayName or (data.request and data.request.fromDisplayName)
-                    })
-                    UpdateNotifications()
-                elseif data.type == "friend_requests" then
-                    friendRequests = {}
-                    for _, req in ipairs(data.requests) do
-                        table.insert(friendRequests, {
-                            userId = req.fromId,
-                            username = req.fromName,
-                            displayName = req.fromDisplayName
-                        })
-                    end
-                    UpdateNotifications()
-                elseif data.type == "friend_accepted" then
-                    LocalData.friends[tostring(data.userId)] = { username = data.username, displayName = data.displayName }
-                    SaveLocalData()
-                    UpdateFriendsList()
-                elseif data.type == "private_message" then
-                    local idStr = tostring(data.fromUserId)
-                    if not LocalData.chats[idStr] then
-                        LocalData.chats[idStr] = {}
-                    end
-                    table.insert(LocalData.chats[idStr], {
-                        id = data.msgId or GenerateMessageID(),
-                        sender = "them", 
-                        type = data.msgType or "text", 
-                        content = data.content,
-                        timestamp = os.time(),
-                        isDeleted = false,
-                        isEdited = false
-                    })
-                    SaveLocalData()
-                    if activeChatUserId == idStr then
-                        RenderMessages(idStr)
-                    end
-                elseif data.type == "message_deleted" then
-                    local idStr = tostring(data.fromUserId)
-                    if LocalData.chats[idStr] then
-                        for _, m in ipairs(LocalData.chats[idStr]) do
-                            if m.id == data.msgId then
-                                m.isDeleted = true
-                                m.content = ""
-                                break
-                            end
-                        end
-                        SaveLocalData()
-                        if activeChatUserId == idStr then RenderMessages(idStr) end
-                    end
-                elseif data.type == "message_edited" then
-                    local idStr = tostring(data.fromUserId)
-                    if LocalData.chats[idStr] then
-                        for _, m in ipairs(LocalData.chats[idStr]) do
-                            if m.id == data.msgId then
-                                m.content = data.content
-                                m.isEdited = true
-                                break
-                            end
-                        end
-                        SaveLocalData()
-                        if activeChatUserId == idStr then RenderMessages(idStr) end
-                    end
-                elseif data.type == "unfriended" then
-                    local idStr = tostring(data.fromUserId)
-                    LocalData.friends[idStr] = nil
-                    LocalData.chats[idStr] = nil
-                    SaveLocalData()
-                    UpdateFriendsList()
-                    if activeChatUserId == idStr then
-                        local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3), {Position = UDim2.new(1, 0, 0, 0)})
-                        tween:Play()
-                        activeChatUserId = nil
-                    end
-                elseif data.type == "presence_update" then
-                    presenceStatuses[tostring(data.userId)] = data.status
-                    if activeChatUserId == tostring(data.userId) then
-                        ChatStatus.Text = data.status
-                    end
-                elseif data.type == "typing_status" then
-                    if activeChatUserId == tostring(data.fromUserId) then
-                        ChatStatus.Text = data.isTyping and "digitando..." or (presenceStatuses[activeChatUserId] or "online")
-                    end
-                end
+    if isConnecting or ws then return end
+    isConnecting = true
+    
+    task.spawn(function()
+        if WebSocket and WebSocket.connect then
+            local success, connection = pcall(function()
+                return WebSocket.connect(SERVER_URL)
             end)
+
+            if success and connection then
+                ws = connection
+                isConnecting = false
+                
+                -- Registrar Usuário no Servidor 
+                ws:Send(HttpService:JSONEncode({
+                    type = "register",
+                    userId = tostring(LocalPlayer.UserId),
+                    username = LocalPlayer.Name,
+                    displayName = LocalPlayer.DisplayName
+                }))
+
+                ws.OnMessage:Connect(function(msg)
+                    local data = HttpService:JSONDecode(msg)
+
+                    if data.type == "search_results" then
+                        RenderSearchResults(data.results)
+                    elseif data.type == "new_friend_request" then
+                        table.insert(friendRequests, {
+                            userId = data.fromId or (data.request and data.request.fromId),
+                            username = data.fromName or (data.request and data.request.fromName),
+                            displayName = data.fromDisplayName or (data.request and data.request.fromDisplayName)
+                        })
+                        UpdateNotifications()
+                    elseif data.type == "friend_requests" then
+                        friendRequests = {}
+                        for _, req in ipairs(data.requests) do
+                            table.insert(friendRequests, {
+                                userId = req.fromId,
+                                username = req.fromName,
+                                displayName = req.fromDisplayName
+                            })
+                        end
+                        UpdateNotifications()
+                    elseif data.type == "friend_accepted" then
+                        LocalData.friends[tostring(data.userId)] = { username = data.username, displayName = data.displayName }
+                        SaveLocalData()
+                        UpdateFriendsList()
+                    elseif data.type == "private_message" then
+                        local idStr = tostring(data.fromUserId)
+                        if not LocalData.chats[idStr] then
+                            LocalData.chats[idStr] = {}
+                        end
+                        table.insert(LocalData.chats[idStr], {
+                            id = data.msgId or GenerateMessageID(),
+                            sender = "them", 
+                            type = data.msgType or "text", 
+                            content = data.content,
+                            timestamp = os.time(),
+                            isDeleted = false,
+                            isEdited = false
+                        })
+                        SaveLocalData()
+                        if activeChatUserId == idStr then
+                            RenderMessages(idStr)
+                        end
+                    elseif data.type == "message_deleted" then
+                        local idStr = tostring(data.fromUserId)
+                        if LocalData.chats[idStr] then
+                            for _, m in ipairs(LocalData.chats[idStr]) do
+                                if m.id == data.msgId then
+                                    m.isDeleted = true
+                                    m.content = ""
+                                    break
+                                end
+                            end
+                            SaveLocalData()
+                            if activeChatUserId == idStr then RenderMessages(idStr) end
+                        end
+                    elseif data.type == "message_edited" then
+                        local idStr = tostring(data.fromUserId)
+                        if LocalData.chats[idStr] then
+                            for _, m in ipairs(LocalData.chats[idStr]) do
+                                if m.id == data.msgId then
+                                    m.content = data.content
+                                    m.isEdited = true
+                                    break
+                                end
+                            end
+                            SaveLocalData()
+                            if activeChatUserId == idStr then RenderMessages(idStr) end
+                        end
+                    elseif data.type == "unfriended" then
+                        local idStr = tostring(data.fromUserId)
+                        LocalData.friends[idStr] = nil
+                        LocalData.chats[idStr] = nil
+                        SaveLocalData()
+                        UpdateFriendsList()
+                        if activeChatUserId == idStr then
+                            local tween = TweenService:Create(ChatWindow, TweenInfo.new(0.3), {Position = UDim2.new(1, 0, 0, 0)})
+                            tween:Play()
+                            activeChatUserId = nil
+                        end
+                    elseif data.type == "presence_update" then
+                        presenceStatuses[tostring(data.userId)] = data.status
+                        if activeChatUserId == tostring(data.userId) then
+                            ChatStatus.Text = data.status
+                        end
+                    elseif data.type == "typing_status" then
+                        if activeChatUserId == tostring(data.fromUserId) then
+                            ChatStatus.Text = data.isTyping and "digitando..." or (presenceStatuses[activeChatUserId] or "online")
+                        end
+                    end
+                end)
+                
+                -- Se cair de forma invisível, ele agenda pra religar.
+                ws.OnClose:Connect(function()
+                    ws = nil
+                    task.wait(3)
+                    ConnectWebSocket()
+                end)
+                
+            else
+                ws = nil
+                isConnecting = false
+                task.wait(5)
+                ConnectWebSocket()
+            end
+        else
+            isConnecting = false
         end
-    end
+    end)
 end
 
 -- Inicializa o Websocket e as listas vazias
