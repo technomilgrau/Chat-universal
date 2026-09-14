@@ -1,390 +1,375 @@
-local RENDER_WEBSOCKET_URL = "wss://chat-universal-k9at.onrender.com"
+local RENDER_WEBSOCKET_URL = "https://chat-universal-k9at.onrender.com/" -- COLOQUE SEU LINK AQUI
 
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Chat = game:GetService("Chat")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
--- ==========================================
--- SISTEMA DE ARQUIVOS LOCAL (Mbchat_dados)
--- ==========================================
+-- === BANCO DE DADOS LOCAL (JSON) ===
 local folderName = "Mbchat_dados"
-if not isfolder(folderName) then makefolder(folderName) end
-if not isfolder(folderName .. "/stickers") then makefolder(folderName .. "/stickers") end
-if not isfolder(folderName .. "/backgrounds") then makefolder(folderName .. "/backgrounds") end
+if isfolder and not isfolder(folderName) then makefolder(folderName) end
 
-local function saveData(file, data) writefile(folderName .. "/" .. file, HttpService:JSONEncode(data)) end
-local function loadData(file, default)
-    if isfile(folderName .. "/" .. file) then
-        local s, r = pcall(function() return HttpService:JSONDecode(readfile(folderName .. "/" .. file)) end)
-        if s then return r end
+local function saveData(fileName, data)
+    if writefile then
+        writefile(folderName .. "/" .. fileName .. ".json", HttpService:JSONEncode(data))
     end
-    return default
 end
 
-local db = {
-    friends = loadData("friends.json", {}),
-    chats = loadData("chats.json", {}),
-    settings = loadData("settings.json", { scale = 1, bg = "nenhuma", pos = {0.5, -240, 0.5, -165} }),
-    recentStickers = loadData("recentStickers.json", {})
+local function loadData(fileName)
+    if isfile and isfile(folderName .. "/" .. fileName .. ".json") then
+        local success, result = pcall(function() return HttpService:JSONDecode(readfile(folderName .. "/" .. fileName .. ".json")) end)
+        if success then return result end
+    end
+    return {}
+end
+
+local chatHistory = loadData("history")
+local friendsData = loadData("friends")
+local settingsData = loadData("settings") or { uiScale = 1 }
+local recentStickers = loadData("stickers")
+
+-- === CONFIGURAÇÕES DE ASSETS (Coloque seus links do GitHub aqui) ===
+local StickersList = {
+    "rbxassetid://12345678", -- Exemplo: Troque por URLs ou IDs reais
+    "rbxassetid://87654321"
+}
+local BackgroundsList = {
+    "rbxassetid://111222333",
+    "rbxassetid://444555666"
 }
 
--- ==========================================
--- UI CORE
--- ==========================================
+-- === CRIAÇÃO DA INTERFACE ===
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "DeltaChatSystem"
+ScreenGui.Name = "DeltaPairingAdvanced"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local UIScale = Instance.new("UIScale", ScreenGui)
-UIScale.Scale = db.settings.scale
+local UIScale = Instance.new("UIScale")
+UIScale.Scale = settingsData.uiScale
+UIScale.Parent = ScreenGui
 
--- Botão Bolinha "D" (Minimizado)
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 50, 0, 50)
-MinBtn.Position = UDim2.new(db.settings.pos[1], db.settings.pos[2], db.settings.pos[3], db.settings.pos[4])
-MinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-MinBtn.Text = "D"
-MinBtn.TextColor3 = Color3.fromRGB(0, 130, 210)
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 24
-MinBtn.Visible = false
-MinBtn.Active = true
-MinBtn.Draggable = true
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(1, 0)
-MinBtn.Parent = ScreenGui
+-- Ícone Minimizador
+local MinimizedBtn = Instance.new("TextButton")
+MinimizedBtn.Size = UDim2.new(0, 50, 0, 50)
+MinimizedBtn.Position = UDim2.new(0, 10, 0, 10)
+MinimizedBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+MinimizedBtn.Text = "D"
+MinimizedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizedBtn.Font = Enum.Font.GothamBold
+MinimizedBtn.TextSize = 24
+MinimizedBtn.Visible = false
+MinimizedBtn.Draggable = true
+MinimizedBtn.Parent = ScreenGui
+Instance.new("UICorner", MinimizedBtn).CornerRadius = UDim.new(1, 0)
 
--- Main Menu
+-- Janela Principal
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 480, 0, 330)
-MainFrame.Position = MinBtn.Position
+MainFrame.Size = UDim2.new(0, 500, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -190)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 MainFrame.Parent = ScreenGui
-
--- Background
-local BgImage = Instance.new("ImageLabel", MainFrame)
-BgImage.Size = UDim2.new(1, 0, 1, 0)
-BgImage.BackgroundTransparency = 1
-BgImage.ImageTransparency = 0.7
-BgImage.ZIndex = 0
-if db.settings.bg ~= "nenhuma" and isfile(folderName .. "/backgrounds/" .. db.settings.bg) then
-    BgImage.Image = getcustomasset(folderName .. "/backgrounds/" .. db.settings.bg)
-end
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
 -- Topbar
-local Header = Instance.new("Frame", MainFrame)
+local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 40)
 Header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-Header.ZIndex = 2
+Header.Parent = MainFrame
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
 
-local Title = Instance.new("TextLabel", Header)
+local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -120, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "DELTA CHAT V3"
+Title.Text = "DELTA ADVANCED CHAT"
 Title.TextColor3 = Color3.fromRGB(240, 240, 245)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
 
-local BtnConfig = Instance.new("TextButton", Header)
-BtnConfig.Size = UDim2.new(0, 30, 0, 30)
-BtnConfig.Position = UDim2.new(1, -75, 0, 5)
-BtnConfig.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-BtnConfig.Text = "⚙"
-BtnConfig.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", BtnConfig).CornerRadius = UDim.new(0, 5)
+-- Botão Configuração (Engrenagem)
+local SettingsBtn = Instance.new("TextButton")
+SettingsBtn.Size = UDim2.new(0, 30, 0, 30)
+SettingsBtn.Position = UDim2.new(1, -75, 0, 5)
+SettingsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+SettingsBtn.Text = "⚙"
+SettingsBtn.TextColor3 = Color3.fromRGB(255,255,255)
+SettingsBtn.Parent = Header
+Instance.new("UICorner", SettingsBtn).CornerRadius = UDim.new(0,6)
 
-local BtnMinimize = Instance.new("TextButton", Header)
-BtnMinimize.Size = UDim2.new(0, 30, 0, 30)
-BtnMinimize.Position = UDim2.new(1, -40, 0, 5)
-BtnMinimize.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-BtnMinimize.Text = "-"
-BtnMinimize.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", BtnMinimize).CornerRadius = UDim.new(0, 5)
+-- Botão Minimizar
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
+CloseBtn.Text = "-"
+CloseBtn.TextColor3 = Color3.fromRGB(255,255,255)
+CloseBtn.Parent = Header
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,6)
 
--- Lógica de Minimizar
-BtnMinimize.MouseButton1Click:Connect(function()
+-- Lógica Minimizar
+CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
-    MinBtn.Visible = true
-    db.settings.pos = {MainFrame.Position.X.Scale, MainFrame.Position.X.Offset, MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset}
-    saveData("settings.json", db.settings)
+    MinimizedBtn.Visible = true
+    MinimizedBtn.Position = UDim2.new(0, MainFrame.AbsolutePosition.X, 0, MainFrame.AbsolutePosition.Y)
 end)
-MinBtn.MouseButton1Click:Connect(function()
-    MinBtn.Visible = false
-    MainFrame.Position = MinBtn.Position
+MinimizedBtn.MouseButton1Click:Connect(function()
+    MinimizedBtn.Visible = false
     MainFrame.Visible = true
+    MainFrame.Position = UDim2.new(0, MinimizedBtn.AbsolutePosition.X, 0, MinimizedBtn.AbsolutePosition.Y)
 end)
 
 -- Abas
-local TabHolder = Instance.new("Frame", MainFrame)
+local TabHolder = Instance.new("Frame")
 TabHolder.Size = UDim2.new(1, -20, 0, 30)
 TabHolder.Position = UDim2.new(0, 10, 0, 48)
 TabHolder.BackgroundTransparency = 1
-local UIListLayoutTabs = Instance.new("UIListLayout", TabHolder)
+TabHolder.Parent = MainFrame
+
+local UIListLayoutTabs = Instance.new("UIListLayout")
 UIListLayoutTabs.FillDirection = Enum.FillDirection.Horizontal
-UIListLayoutTabs.Padding = UDim.new(0, 8)
+UIListLayoutTabs.Padding = UDim.new(0, 5)
+UIListLayoutTabs.Parent = TabHolder
 
-local function createTabBtn(name)
-    local b = Instance.new("TextButton", TabHolder)
-    b.Size = UDim2.new(0, 105, 1, 0)
-    b.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
-    b.Text = name
-    b.TextColor3 = Color3.fromRGB(200, 200, 210)
-    b.Font = Enum.Font.GothamMedium
-    b.TextSize = 12
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-    return b
+local function createTab(name)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 110, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(200, 200, 210)
+    btn.Font = Enum.Font.GothamMedium
+    btn.Parent = TabHolder
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    return btn
 end
-local FriendsTabBtn = createTabBtn("Procurar Amigos")
-local NotifsTabBtn = createTabBtn("Notificações")
-local ChatTabBtn = createTabBtn("Bate-Papo")
 
--- Containers
-local ContentArea = Instance.new("Frame", MainFrame)
+local SearchTabBtn = createTab("Procurar amigos")
+local NotifTabBtn = createTab("Notificações")
+local ChatTabBtn = createTab("Bate-papo")
+local GroupTabBtn = createTab("Grupos")
+
+local ContentArea = Instance.new("Frame")
 ContentArea.Size = UDim2.new(1, -20, 1, -95)
 ContentArea.Position = UDim2.new(0, 10, 0, 85)
 ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
 
-local FriendsFrame = Instance.new("Frame", ContentArea)
-FriendsFrame.Size = UDim2.new(1, 0, 1, 0)
-FriendsFrame.BackgroundTransparency = 1
+-- Painéis
+local SearchFrame = Instance.new("Frame", ContentArea)
+SearchFrame.Size = UDim2.new(1,0,1,0); SearchFrame.BackgroundTransparency = 1
+local NotifFrame = Instance.new("ScrollingFrame", ContentArea)
+NotifFrame.Size = UDim2.new(1,0,1,0); NotifFrame.BackgroundTransparency = 1; NotifFrame.Visible = false
+local ChatFrame = Instance.new("Frame", ContentArea)
+ChatFrame.Size = UDim2.new(1,0,1,0); ChatFrame.BackgroundTransparency = 1; ChatFrame.Visible = false
+local GroupFrame = Instance.new("Frame", ContentArea)
+GroupFrame.Size = UDim2.new(1,0,1,0); GroupFrame.BackgroundTransparency = 1; GroupFrame.Visible = false
 
-local SearchBar = Instance.new("TextBox", FriendsFrame)
+local function switchTab(tab)
+    SearchFrame.Visible = (tab == "search")
+    NotifFrame.Visible = (tab == "notif")
+    ChatFrame.Visible = (tab == "chat")
+    GroupFrame.Visible = (tab == "group")
+end
+SearchTabBtn.MouseButton1Click:Connect(function() switchTab("search") end)
+NotifTabBtn.MouseButton1Click:Connect(function() switchTab("notif") end)
+ChatTabBtn.MouseButton1Click:Connect(function() switchTab("chat") end)
+GroupTabBtn.MouseButton1Click:Connect(function() switchTab("group") end)
+
+-- === ABA PROCURAR AMIGOS ===
+local SearchBar = Instance.new("TextBox", SearchFrame)
 SearchBar.Size = UDim2.new(1, 0, 0, 30)
-SearchBar.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
-SearchBar.PlaceholderText = " Pesquisar usuário..."
+SearchBar.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+SearchBar.PlaceholderText = "Pesquisar usuário..."
+SearchBar.TextColor3 = Color3.fromRGB(255,255,255)
 SearchBar.Text = ""
-SearchBar.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", SearchBar)
 
-local CreateGroupBtn = Instance.new("TextButton", FriendsFrame)
-CreateGroupBtn.Size = UDim2.new(1, 0, 0, 30)
-CreateGroupBtn.Position = UDim2.new(0, 0, 1, -30)
-CreateGroupBtn.BackgroundColor3 = Color3.fromRGB(0, 130, 210)
-CreateGroupBtn.Text = "Criar Grupo"
-CreateGroupBtn.TextColor3 = Color3.new(1,1,1)
-CreateGroupBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CreateGroupBtn).CornerRadius = UDim.new(0, 6)
-
-local UsersList = Instance.new("ScrollingFrame", FriendsFrame)
-UsersList.Size = UDim2.new(1, 0, 1, -70)
+local UsersList = Instance.new("ScrollingFrame", SearchFrame)
+UsersList.Size = UDim2.new(1, 0, 1, -35)
 UsersList.Position = UDim2.new(0, 0, 0, 35)
 UsersList.BackgroundTransparency = 1
-UsersList.ScrollBarThickness = 4
 local UsersLayout = Instance.new("UIListLayout", UsersList)
-UsersLayout.Padding = UDim.new(0, 6)
+UsersLayout.Padding = UDim.new(0, 5)
 
-local NotifsFrame = Instance.new("ScrollingFrame", ContentArea)
-NotifsFrame.Size = UDim2.new(1, 0, 1, 0)
-NotifsFrame.BackgroundTransparency = 1
-NotifsFrame.Visible = false
-NotifsFrame.ScrollBarThickness = 4
-local NotifsLayout = Instance.new("UIListLayout", NotifsFrame)
-NotifsLayout.Padding = UDim.new(0, 6)
-
-local ChatFrame = Instance.new("Frame", ContentArea)
-ChatFrame.Size = UDim2.new(1, 0, 1, 0)
-ChatFrame.BackgroundTransparency = 1
-ChatFrame.Visible = false
-
+-- === ABA BATE-PAPO ===
 local ChatLog = Instance.new("ScrollingFrame", ChatFrame)
-ChatLog.Size = UDim2.new(1, 0, 1, -35)
+ChatLog.Size = UDim2.new(1, 0, 1, -40)
 ChatLog.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
-ChatLog.BackgroundTransparency = 0.4
-ChatLog.BorderSizePixel = 0
-ChatLog.ScrollBarThickness = 4
-Instance.new("UICorner", ChatLog).CornerRadius = UDim.new(0, 6)
 local ChatLayout = Instance.new("UIListLayout", ChatLog)
 ChatLayout.Padding = UDim.new(0, 4)
 
-local ChatInputArea = Instance.new("Frame", ChatFrame)
-ChatInputArea.Size = UDim2.new(1, 0, 0, 30)
-ChatInputArea.Position = UDim2.new(0, 0, 1, -30)
-ChatInputArea.BackgroundTransparency = 1
+local ChatInputContainer = Instance.new("Frame", ChatFrame)
+ChatInputContainer.Size = UDim2.new(1, 0, 0, 35)
+ChatInputContainer.Position = UDim2.new(0, 0, 1, -35)
+ChatInputContainer.BackgroundTransparency = 1
 
-local ChatInput = Instance.new("TextBox", ChatInputArea)
-ChatInput.Size = UDim2.new(1, -75, 1, 0)
+local ChatInput = Instance.new("TextBox", ChatInputContainer)
+ChatInput.Size = UDim2.new(1, -40, 1, 0)
 ChatInput.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
-ChatInput.PlaceholderText = " /invite, //leave, //invitegp..."
-ChatInput.Text = ""
-ChatInput.TextColor3 = Color3.new(1,1,1)
-ChatInput.TextXAlignment = Enum.TextXAlignment.Left
-Instance.new("UICorner", ChatInput).CornerRadius = UDim.new(0, 6)
+ChatInput.PlaceholderText = "Digite sua mensagem... (/invite @nick)"
+ChatInput.TextColor3 = Color3.fromRGB(255,255,255)
+ChatInput.Text = "" -- FIXED: Empty by default
+Instance.new("UICorner", ChatInput)
 
-local StickerBtn = Instance.new("TextButton", ChatInputArea)
-StickerBtn.Size = UDim2.new(0, 30, 0, 30)
-StickerBtn.Position = UDim2.new(1, -70, 0, 0)
-StickerBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+local StickerBtn = Instance.new("TextButton", ChatInputContainer)
+StickerBtn.Size = UDim2.new(0, 35, 0, 35)
+StickerBtn.Position = UDim2.new(1, -35, 0, 0)
+StickerBtn.BackgroundColor3 = Color3.fromRGB(40,40,50)
 StickerBtn.Text = "🙂"
-Instance.new("UICorner", StickerBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", StickerBtn)
 
-local CloneBtn = Instance.new("TextButton", ChatInputArea)
-CloneBtn.Size = UDim2.new(0, 35, 0, 30)
-CloneBtn.Position = UDim2.new(1, -35, 0, 0)
-CloneBtn.BackgroundColor3 = Color3.fromRGB(80, 40, 180)
-CloneBtn.Text = "Clone"
-CloneBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", CloneBtn).CornerRadius = UDim.new(0, 6)
+-- Autocomplete UI
+local AutoCompleteFrame = Instance.new("Frame", ChatFrame)
+AutoCompleteFrame.Size = UDim2.new(0, 150, 0, 100)
+AutoCompleteFrame.Position = UDim2.new(0, 5, 1, -140)
+AutoCompleteFrame.BackgroundColor3 = Color3.fromRGB(40,40,50)
+AutoCompleteFrame.Visible = false
+Instance.new("UICorner", AutoCompleteFrame)
+local AutoCompleteLayout = Instance.new("UIListLayout", AutoCompleteFrame)
 
--- Painel de Configurações
-local ConfigPanel = Instance.new("Frame", MainFrame)
-ConfigPanel.Size = UDim2.new(1, 0, 1, 0)
-ConfigPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-ConfigPanel.Visible = false
-ConfigPanel.ZIndex = 10
-
-local CfgTitle = Instance.new("TextLabel", ConfigPanel)
-CfgTitle.Size = UDim2.new(1, 0, 0, 40)
-CfgTitle.Text = "Configurações"
-CfgTitle.TextColor3 = Color3.new(1,1,1)
-CfgTitle.BackgroundTransparency = 1
-CfgTitle.Font = Enum.Font.GothamBold
-
-local function createCfgBtn(txt, pos, cb)
-    local b = Instance.new("TextButton", ConfigPanel)
-    b.Size = UDim2.new(0, 100, 0, 30)
-    b.Position = pos
-    b.Text = txt
-    b.BackgroundColor3 = Color3.fromRGB(40,40,50)
-    b.TextColor3 = Color3.new(1,1,1)
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0,6)
-    b.MouseButton1Click:Connect(cb)
-end
-createCfgBtn("Aumentar UI", UDim2.new(0.5, 10, 0.3, 0), function() UIScale.Scale = UIScale.Scale + 0.1 db.settings.scale = UIScale.Scale saveData("settings.json", db.settings) end)
-createCfgBtn("Diminuir UI", UDim2.new(0.5, -110, 0.3, 0), function() UIScale.Scale = math.max(0.5, UIScale.Scale - 0.1) db.settings.scale = UIScale.Scale saveData("settings.json", db.settings) end)
-createCfgBtn("Voltar", UDim2.new(0.5, -50, 0.8, 0), function() ConfigPanel.Visible = false end)
-
-BtnConfig.MouseButton1Click:Connect(function() ConfigPanel.Visible = true end)
-
-local function switchTab(tab)
-    FriendsFrame.Visible = (tab == "friends")
-    NotifsFrame.Visible = (tab == "notifs")
-    ChatFrame.Visible = (tab == "chat")
-end
-FriendsTabBtn.MouseButton1Click:Connect(function() switchTab("friends") end)
-NotifsTabBtn.MouseButton1Click:Connect(function() switchTab("notifs") end)
-ChatTabBtn.MouseButton1Click:Connect(function() switchTab("chat") end)
-
--- ==========================================
--- GERENCIAMENTO WEBSOCKET E LÓGICA
--- ==========================================
+-- === FUNÇÕES WEBSOCKET ===
 local ws = nil
-local currentChatId = nil
-local currentGroupId = nil
-local isGroupHost = false
-
--- Variáveis Clone
-local cloneActive = false
-local cloneTargetId = nil
-local cloneModel = nil
+local activeContext = "private"
+local hostRoomId = nil
 
 local function sendWS(data)
     if ws then ws:Send(HttpService:JSONEncode(data)) end
 end
 
-local function appendChat(sender, text, isSystem)
-    local msgLabel = Instance.new("TextLabel", ChatLog)
-    msgLabel.Size = UDim2.new(1, -10, 0, 24)
-    msgLabel.BackgroundTransparency = 1
-    msgLabel.Text = "  " .. (isSystem and "⚙ " or sender .. ": ") .. text
-    msgLabel.TextColor3 = isSystem and Color3.fromRGB(150, 255, 150) or Color3.fromRGB(230, 230, 240)
-    msgLabel.TextXAlignment = Enum.TextXAlignment.Left
-    msgLabel.Font = isSystem and Enum.Font.GothamBold or Enum.Font.Gotham
-    msgLabel.TextSize = 13
-    ChatLog.CanvasSize = UDim2.new(0, 0, 0, ChatLayout.AbsoluteContentSize.Y + 10)
-    ChatLog.CanvasPosition = Vector2.new(0, ChatLog.CanvasSize.Y.Offset)
+local function addNotification(text, onAccept, onDecline)
+    local card = Instance.new("Frame", NotifFrame)
+    card.Size = UDim2.new(1, 0, 0, 50)
+    card.BackgroundColor3 = Color3.fromRGB(28,28,34)
+    Instance.new("UICorner", card)
     
-    if cloneActive and cloneTargetId and sender == LocalPlayer.Name then
-        sendWS({type = "sync_transform", targetId = cloneTargetId, chatBubble = text})
+    local lbl = Instance.new("TextLabel", card)
+    lbl.Size = UDim2.new(1, -90, 1, 0); lbl.Position = UDim2.new(0, 5, 0, 0)
+    lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(255,255,255)
+    lbl.TextWrapped = true
+    
+    local accBtn = Instance.new("TextButton", card)
+    accBtn.Size = UDim2.new(0, 40, 0, 30); accBtn.Position = UDim2.new(1, -85, 0, 10)
+    accBtn.BackgroundColor3 = Color3.fromRGB(40,160,80); accBtn.Text = "V"
+    accBtn.MouseButton1Click:Connect(function() onAccept() card:Destroy() end)
+    
+    local decBtn = Instance.new("TextButton", card)
+    decBtn.Size = UDim2.new(0, 40, 0, 30); decBtn.Position = UDim2.new(1, -45, 0, 10)
+    decBtn.BackgroundColor3 = Color3.fromRGB(190,40,40); decBtn.Text = "X"
+    decBtn.MouseButton1Click:Connect(function() if onDecline then onDecline() end card:Destroy() end)
+end
+
+local function appendChat(sender, text)
+    local msg = Instance.new("TextLabel", ChatLog)
+    msg.Size = UDim2.new(1, -10, 0, 24)
+    msg.BackgroundTransparency = 1
+    msg.Text = "["..sender.."]: " .. text
+    msg.TextColor3 = Color3.fromRGB(230, 230, 240)
+    msg.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Salvar localmente
+    if hostRoomId then
+        if not chatHistory[hostRoomId] then chatHistory[hostRoomId] = {} end
+        table.insert(chatHistory[hostRoomId], {s = sender, t = text})
+        saveData("history", chatHistory)
     end
 end
 
--- Fix Mobile: Texto só some se apertar enviar (enterPressed)
+-- Lógica de Pesquisa de Usuários
+local allOnlineUsers = {}
+local function renderUsers(filter)
+    for _, c in ipairs(UsersList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+    
+    for _, u in ipairs(allOnlineUsers) do
+        if u.userId ~= tostring(LocalPlayer.UserId) then
+            if filter == "" or string.find(string.lower(u.username), string.lower(filter)) then
+                local card = Instance.new("Frame", UsersList)
+                card.Size = UDim2.new(1, 0, 0, 50)
+                card.BackgroundColor3 = Color3.fromRGB(40,40,48) -- Quadrado mais claro
+                Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+                
+                local av = Instance.new("ImageLabel", card)
+                av.Size = UDim2.new(0, 40, 0, 40); av.Position = UDim2.new(0, 5, 0, 5)
+                av.Image = "rbxthumb://type=AvatarHeadShot&id="..u.userId.."&w=150&h=150"
+                Instance.new("UICorner", av).CornerRadius = UDim.new(0, 8) -- Quadrado com borda arredondada
+                
+                local name = Instance.new("TextLabel", card)
+                name.Size = UDim2.new(1, -130, 1, 0); name.Position = UDim2.new(0, 55, 0, 0)
+                name.BackgroundTransparency = 1; name.Text = u.username; name.TextColor3 = Color3.fromRGB(255,255,255)
+                name.TextXAlignment = Enum.TextXAlignment.Left
+                
+                local addBtn = Instance.new("TextButton", card)
+                addBtn.Size = UDim2.new(0, 70, 0, 30); addBtn.Position = UDim2.new(1, -75, 0, 10)
+                addBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+                addBtn.Text = "Adicionar"
+                addBtn.TextColor3 = Color3.fromRGB(255,255,255)
+                Instance.new("UICorner", addBtn)
+                
+                addBtn.MouseButton1Click:Connect(function()
+                    sendWS({type = "friend_request", targetId = u.userId})
+                    addBtn.Text = "Enviado"
+                end)
+            end
+        end
+    end
+end
+
+SearchBar:GetPropertyChangedSignal("Text"):Connect(function() renderUsers(SearchBar.Text) end)
+
+-- Lógica Autocomplete Chat
+ChatInput:GetPropertyChangedSignal("Text"):Connect(function()
+    local txt = ChatInput.Text
+    if string.match(txt, "^/invite @") or string.match(txt, "^//invitegp @") then
+        local search = string.gsub(txt, "^/?/inviteg?p? @", "")
+        AutoCompleteFrame.Visible = true
+        for _, c in ipairs(AutoCompleteFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        
+        for friendId, friendName in pairs(friendsData) do
+            if string.find(string.lower(friendName), string.lower(search)) then
+                local b = Instance.new("TextButton", AutoCompleteFrame)
+                b.Size = UDim2.new(1, 0, 0, 25); b.Text = friendName
+                b.BackgroundColor3 = Color3.fromRGB(50,50,60); b.TextColor3 = Color3.fromRGB(200,200,255)
+                b.MouseButton1Click:Connect(function()
+                    ChatInput.Text = string.match(txt, "^/?/inviteg?p?") .. " @" .. friendName
+                    AutoCompleteFrame.Visible = false
+                end)
+            end
+        end
+    else
+        AutoCompleteFrame.Visible = false
+    end
+end)
+
+-- FIXED: Chat Input losing focus fix
 ChatInput.FocusLost:Connect(function(enterPressed)
     if enterPressed and ChatInput.Text ~= "" then
-        local msg = ChatInput.Text
-        local isCmd = false
+        local txt = ChatInput.Text
         
-        -- COMANDOS DE CHAT E GRUPO
-        if string.sub(msg, 1, 8) == "/invite " then
-            isCmd = true
-            -- AQUI ENTRA A LOGICA DE BUSCAR ID PELO NOME E ENVIAR chat_invite
-            appendChat("Sistema", "Convite enviado. (Precisa do ID na lógica real)", true)
-        elseif msg == "//leave" then
-            isCmd = true
-            if isGroupHost then
-                appendChat("Sistema", "Você é o anfitrião. Use //deletegp para apagar.", true)
-            else
-                sendWS({ type = "chat_leave" })
-                currentChatId = nil
-                currentGroupId = nil
-                appendChat("Sistema", "Você saiu do chat/grupo.", true)
-            end
-        elseif string.sub(msg, 1, 10) == "//invitegp" then
-            isCmd = true
-            appendChat("Sistema", "Comando de invite de grupo detectado.", true)
-        elseif msg == "//deletegp" then
-            isCmd = true
-            if currentGroupId and isGroupHost then
-                sendWS({ type = "delete_group", groupId = currentGroupId })
-            end
+        if string.match(txt, "^/invite @") then
+            local targetName = string.gsub(txt, "/invite @", "")
+            local targetId = nil
+            for id, name in pairs(friendsData) do if name == targetName then targetId = id break end end
+            if targetId then sendWS({type = "chat_invite", targetId = targetId}) end
+            
+        elseif txt == "//leave" then
+            sendWS({type = "chat_leave"})
+            hostRoomId = nil
+            appendChat("Sistema", "Você saiu do chat.")
+            
+        else
+            sendWS({type = "send_message", context = activeContext, content = txt})
         end
-
-        if not isCmd then
-            sendWS({ type = "chat_msg", message = msg })
-            appendChat(LocalPlayer.Name, msg, false)
-            table.insert(db.chats, {sender = LocalPlayer.Name, text = msg})
-            saveData("chats.json", db.chats)
-        end
-        ChatInput.Text = "" 
+        ChatInput.Text = ""
     end
+    -- Se enterPressed for false (fechou teclado), o texto CONTINUA LÁ.
 end)
 
--- Sistema de Convite de Clone
-CloneBtn.MouseButton1Click:Connect(function()
-    if currentChatId then
-        sendWS({type = "clone_invite", targetId = currentChatId})
-        appendChat("Sistema", "Convite de clone enviado!", true)
-    else
-        appendChat("Sistema", "Você precisa estar em um chat 1v1 para usar o clone.", true)
-    end
-end)
-
-local function buildCloneModel(userId)
-    -- Cria um Dummy básico (Em um script completo, usar GetHumanoidDescription)
-    local dummy = Instance.new("Model")
-    dummy.Name = "DeltaClone_"..userId
-    local hrp = Instance.new("Part", dummy)
-    hrp.Name = "HumanoidRootPart"
-    hrp.Size = Vector3.new(2,2,1)
-    hrp.Transparency = 0.5
-    hrp.Color = Color3.new(0,0,1)
-    hrp.Anchored = true
-    hrp.CanCollide = false
-    dummy.PrimaryPart = hrp
-    
-    local head = Instance.new("Part", dummy)
-    head.Name = "Head"
-    head.Size = Vector3.new(1,1,1)
-    head.Position = hrp.Position + Vector3.new(0, 1.5, 0)
-    head.Anchored = true
-    head.CanCollide = false
-    local weld = Instance.new("WeldConstraint", dummy)
-    weld.Part0 = hrp weld.Part1 = head
-    
-    dummy.Parent = workspace
-    return dummy
-end
-
+-- Conexão e Handlers WebSocket
 local WebSocketApi = WebSocket or (syn and syn.websocket)
 if WebSocketApi then
     ws = WebSocketApi.connect(RENDER_WEBSOCKET_URL)
@@ -392,62 +377,69 @@ if WebSocketApi then
     ws.OnMessage:Connect(function(msg)
         local data = HttpService:JSONDecode(msg)
         
-        if data.type == "user_list" then
-            -- Atualiza interface de usuários...
-        elseif data.type == "chat_connected" then
-            currentChatId = data.targetId
-            switchTab("chat")
-            appendChat("Sistema", "Você conectou com " .. data.targetName, true)
+        if data.type == "users_list" then
+            allOnlineUsers = data.users
+            renderUsers(SearchBar.Text)
             
-            -- Carrega histórico
-            for _, c in ipairs(db.chats) do
-                appendChat(c.sender, c.text, false)
+        elseif data.type == "notification" then
+            if data.notifType == "friend_request" then
+                addNotification(data.senderName.." enviou um pedido de amizade", 
+                    function() sendWS({type="friend_accept", targetId=data.senderId, targetName=data.senderName}) end)
+            elseif data.notifType == "chat_invite" then
+                addNotification("Sua amizade "..data.senderName.." enviou um pedido de chat",
+                    function() sendWS({type="chat_accept", hostId=data.senderId}) end)
             end
             
-        elseif data.type == "chat_msg" or data.type == "group_msg" then
-            appendChat(data.sender, data.message, false)
-            table.insert(db.chats, {sender = data.sender, text = data.message})
-            saveData("chats.json", db.chats)
+        elseif data.type == "friend_added" then
+            friendsData[tostring(data.friendId)] = data.friendName
+            saveData("friends", friendsData)
             
-        elseif data.type == "chat_ended" then
-            appendChat("Sistema", data.reason, true)
-            currentChatId = nil
+        elseif data.type == "chat_connected" or data.type == "chat_joined" then
+            hostRoomId = data.hostId or tostring(LocalPlayer.UserId)
+            activeContext = "private"
+            switchTab("chat")
+            appendChat("Sistema", "Conectado ao bate-papo de " .. (data.hostName or data.userName))
             
-        -- Lógica de Clones
-        elseif data.type == "clone_invite" then
-            -- Auto-aceita para testar a lógica (Na ui real teria o botão Sim/Não)
-            sendWS({type = "clone_accept", targetId = data.fromId})
-            appendChat("Sistema", data.fromName .. " convidou para clone. Aceito!", true)
-            
-        elseif data.type == "clone_accepted" then
-            cloneActive = true
-            cloneTargetId = data.fromId
-            cloneModel = buildCloneModel(data.fromId)
-            appendChat("Sistema", data.targetName .. " aceitou o clone!", true)
-            
-        elseif data.type == "sync_update" then
-            if cloneModel and cloneModel.PrimaryPart then
-                -- Atualiza a posição do boneco clone
-                cloneModel.PrimaryPart.CFrame = CFrame.new(unpack(data.cframe))
-                if data.chatBubble then
-                    Chat:Chat(cloneModel:FindFirstChild("Head") or cloneModel.PrimaryPart, data.chatBubble, Enum.ChatColor.White)
+            -- Carregar Histórico Local
+            if chatHistory[hostRoomId] then
+                for _, m in ipairs(chatHistory[hostRoomId]) do
+                    appendChat(m.s, m.t)
                 end
             end
+            
+        elseif data.type == "message" or data.type == "system_message" then
+            appendChat(data.senderName or "Sistema", data.content or data.text)
+            
+        elseif data.type == "clone_start" then
+            -- SISTEMA DE CLONE INICIADO
+            appendChat("Clone", "Sincronização de clone iniciada!")
+            local targetPlayerId = data.targetId
+            -- Criaria um Rig local aqui e começaria o loop de CFrame (Simplificado para caber no limite)
+            RunService.RenderStepped:Connect(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local pos = LocalPlayer.Character.HumanoidRootPart.CFrame
+                    sendWS({type="clone_sync", targetId = targetPlayerId, cframe = {pos.X, pos.Y, pos.Z}})
+                end
+            end)
+            
+        elseif data.type == "clone_update" then
+            -- Moveria o Rig criado com os dados data.cframe
         end
     end)
     
     sendWS({ type = "register", userId = tostring(LocalPlayer.UserId), username = LocalPlayer.Name })
 end
 
--- Loop de Sincronização de Movimento (Heartbeat)
-RunService.Heartbeat:Connect(function()
-    if cloneActive and cloneTargetId and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local cf = LocalPlayer.Character.HumanoidRootPart.CFrame
-        -- Envia um Array X,Y,Z para economizar banda no WebSocket
-        sendWS({
-            type = "sync_transform",
-            targetId = cloneTargetId,
-            cframe = {cf.X, cf.Y, cf.Z} 
-        })
+-- === BOTÃO CLONE ===
+local CloneBtn = Instance.new("TextButton", Header)
+CloneBtn.Size = UDim2.new(0, 100, 0, 30); CloneBtn.Position = UDim2.new(1, -185, 0, 5)
+CloneBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
+CloneBtn.Text = "Convite Clone"
+CloneBtn.TextColor3 = Color3.fromRGB(255,255,255)
+Instance.new("UICorner", CloneBtn).CornerRadius = UDim.new(0,6)
+CloneBtn.MouseButton1Click:Connect(function()
+    -- Dispara para a pessoa que está no hostRoomId atual
+    if hostRoomId and hostRoomId ~= tostring(LocalPlayer.UserId) then
+        sendWS({type = "clone_request", targetId = hostRoomId})
     end
 end)
