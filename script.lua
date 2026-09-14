@@ -53,6 +53,7 @@ local presenceStatuses = {} -- [userId] = "online" | "offline" | "digitando..."
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChatUniversalUI"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
@@ -199,6 +200,8 @@ NotifScroll.Size = UDim2.new(1, -16, 1, -16)
 NotifScroll.Position = UDim2.new(0, 8, 0, 8)
 NotifScroll.BackgroundTransparency = 1
 NotifScroll.ZIndex = 11
+NotifScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+NotifScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 NotifScroll.Parent = NotificationsFrame
 
 local NotifLayout = Instance.new("UIListLayout")
@@ -441,6 +444,7 @@ local function UpdateNotifications()
             local ReqFrame = Instance.new("Frame")
             ReqFrame.Size = UDim2.new(1, 0, 0, 50)
             ReqFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            ReqFrame.ZIndex = 12
             ReqFrame.Parent = NotifScroll
             
             local ReqCorner = Instance.new("UICorner")
@@ -450,8 +454,9 @@ local function UpdateNotifications()
             local ReqAvatar = Instance.new("ImageLabel")
             ReqAvatar.Size = UDim2.new(0, 36, 0, 36)
             ReqAvatar.Position = UDim2.new(0, 8, 0, 7)
-            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. req.userId .. "&width=420&height=420&format=png"
+            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(req.userId or req.id) .. "&width=420&height=420&format=png"
             ReqAvatar.BackgroundTransparency = 1
+            ReqAvatar.ZIndex = 13
             ReqAvatar.Parent = ReqFrame
             
             local ReqAvatarCorner = Instance.new("UICorner")
@@ -462,11 +467,12 @@ local function UpdateNotifications()
             ReqName.Size = UDim2.new(0, 100, 0, 18)
             ReqName.Position = UDim2.new(0, 52, 0, 16)
             ReqName.BackgroundTransparency = 1
-            ReqName.Text = req.username
+            ReqName.Text = tostring(req.username or req.name or "Desconhecido")
             ReqName.Font = Enum.Font.GothamBold
             ReqName.TextSize = 13
             ReqName.TextColor3 = Color3.fromRGB(255, 255, 255)
             ReqName.TextXAlignment = Enum.TextXAlignment.Left
+            ReqName.ZIndex = 13
             ReqName.Parent = ReqFrame
             
             -- Botão Aceitar (Verde)
@@ -477,6 +483,7 @@ local function UpdateNotifications()
             AcceptBtn.Text = "✓"
             AcceptBtn.TextColor3 = Color3.fromRGB(255,255,255)
             AcceptBtn.Font = Enum.Font.GothamBold
+            AcceptBtn.ZIndex = 13
             AcceptBtn.Parent = ReqFrame
             
             local AcceptCorner = Instance.new("UICorner")
@@ -491,21 +498,19 @@ local function UpdateNotifications()
             DeclineBtn.Text = "✗"
             DeclineBtn.TextColor3 = Color3.fromRGB(255,255,255)
             DeclineBtn.Font = Enum.Font.GothamBold
+            DeclineBtn.ZIndex = 13
             DeclineBtn.Parent = ReqFrame
             
-            local DeclineCorner = Instance.new("UICorner")
-            DeclineCorner.CornerRadius = UDim.new(0, 6)
-            DeclineCorner.Parent = DeclineBtn
-            
             AcceptBtn.MouseButton1Click:Connect(function()
+                local targetId = req.userId or req.id
                 if ws then
                     ws:Send(HttpService:JSONEncode({
                         type = "accept_friend",
-                        targetUserId = req.userId
+                        targetUserId = targetId
                     }))
                 end
                 -- Adiciona localmente caso o server atrase, para uso imediato
-                LocalData.friends[tostring(req.userId)] = req.username
+                LocalData.friends[tostring(targetId)] = req.username or req.name or "Desconhecido"
                 SaveLocalData()
                 
                 table.remove(friendRequests, i)
@@ -514,10 +519,11 @@ local function UpdateNotifications()
             end)
             
             DeclineBtn.MouseButton1Click:Connect(function()
+                local targetId = req.userId or req.id
                 if ws then
                     ws:Send(HttpService:JSONEncode({
                         type = "decline_friend",
-                        targetUserId = req.userId
+                        targetUserId = targetId
                     }))
                 end
                 table.remove(friendRequests, i)
@@ -720,10 +726,11 @@ local function ConnectWebSocket()
                 if data.type == "search_results" then
                     RenderSearchResults(data.results)
                 elseif data.type == "new_friend_request" then
-                    table.insert(friendRequests, data.request)
+                    local newReq = data.request or {userId = data.userId, username = data.username}
+                    table.insert(friendRequests, newReq)
                     UpdateNotifications()
                 elseif data.type == "friend_requests" then
-                    friendRequests = data.requests
+                    friendRequests = data.requests or {}
                     UpdateNotifications()
                 elseif data.type == "friend_accepted" then
                     LocalData.friends[tostring(data.userId)] = data.username
