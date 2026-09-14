@@ -311,12 +311,18 @@ local NotifScroll = Instance.new("ScrollingFrame")
 NotifScroll.Size = UDim2.new(1, -16, 1, -16)
 NotifScroll.Position = UDim2.new(0, 8, 0, 8)
 NotifScroll.BackgroundTransparency = 1
+NotifScroll.ScrollBarThickness = 2
 NotifScroll.ZIndex = 11
 NotifScroll.Parent = NotificationsFrame
 
 local NotifLayout = Instance.new("UIListLayout")
 NotifLayout.Padding = UDim.new(0, 6)
 NotifLayout.Parent = NotifScroll
+
+-- Adicionado auto-resize para a barra de rolagem de notificações
+NotifLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    NotifScroll.CanvasSize = UDim2.new(0, 0, 0, NotifLayout.AbsoluteContentSize.Y + 10)
+end)
 
 local EmptyNotifText = Instance.new("TextLabel")
 EmptyNotifText.Size = UDim2.new(1, 0, 1, 0)
@@ -768,17 +774,22 @@ function UpdateNotifications()
             local ReqFrame = Instance.new("Frame")
             ReqFrame.Size = UDim2.new(1, 0, 0, 50)
             ReqFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+            ReqFrame.ZIndex = 12
             ReqFrame.Parent = NotifScroll
             
             local ReqCorner = Instance.new("UICorner")
             ReqCorner.CornerRadius = UDim.new(0, 8)
             ReqCorner.Parent = ReqFrame
             
+            -- Convertendo explicitamente para evitar erro de concatenação com nil
+            local uid = tostring(req.userId or req.fromId or "0")
+            
             local ReqAvatar = Instance.new("ImageLabel")
             ReqAvatar.Size = UDim2.new(0, 36, 0, 36)
             ReqAvatar.Position = UDim2.new(0, 8, 0, 7)
-            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. req.userId .. "&width=420&height=420&format=png"
+            ReqAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. uid .. "&width=420&height=420&format=png"
             ReqAvatar.BackgroundTransparency = 1
+            ReqAvatar.ZIndex = 13
             ReqAvatar.Parent = ReqFrame
             
             local ReqAvatarCorner = Instance.new("UICorner")
@@ -797,6 +808,7 @@ function UpdateNotifications()
             ReqName.TextSize = 13
             ReqName.TextColor3 = Color3.fromRGB(255, 255, 255)
             ReqName.TextXAlignment = Enum.TextXAlignment.Left
+            ReqName.ZIndex = 13
             ReqName.Parent = ReqFrame
             
             -- Botão Aceitar (Verde)
@@ -807,6 +819,7 @@ function UpdateNotifications()
             AcceptBtn.Text = "✓"
             AcceptBtn.TextColor3 = Color3.fromRGB(255,255,255)
             AcceptBtn.Font = Enum.Font.GothamBold
+            AcceptBtn.ZIndex = 13
             AcceptBtn.Parent = ReqFrame
             
             local AcceptCorner = Instance.new("UICorner")
@@ -821,6 +834,7 @@ function UpdateNotifications()
             DeclineBtn.Text = "✗"
             DeclineBtn.TextColor3 = Color3.fromRGB(255,255,255)
             DeclineBtn.Font = Enum.Font.GothamBold
+            DeclineBtn.ZIndex = 13
             DeclineBtn.Parent = ReqFrame
             
             local DeclineCorner = Instance.new("UICorner")
@@ -831,12 +845,12 @@ function UpdateNotifications()
                 if ws then
                     ws:Send(HttpService:JSONEncode({
                         type = "accept_friend_request",
-                        senderId = tostring(req.userId),
+                        senderId = uid,
                         username = LocalPlayer.Name,
                         displayName = LocalPlayer.DisplayName
                     }))
                 end
-                LocalData.friends[tostring(req.userId)] = { username = req.username, displayName = req.displayName }
+                LocalData.friends[uid] = { username = req.username, displayName = req.displayName }
                 SaveLocalData()
                 
                 table.remove(friendRequests, i)
@@ -848,7 +862,7 @@ function UpdateNotifications()
                 if ws then
                     ws:Send(HttpService:JSONEncode({
                         type = "decline_friend",
-                        targetUserId = req.userId
+                        targetUserId = uid
                     }))
                 end
                 table.remove(friendRequests, i)
@@ -1302,10 +1316,11 @@ local function ConnectWebSocket()
                 if data.type == "search_results" then
                     RenderSearchResults(data.results)
                 elseif data.type == "new_friend_request" then
+                    -- Garantindo que ele pegue os dados com segurança não importa como o Node mandou
                     table.insert(friendRequests, {
-                        userId = data.request.fromId,
-                        username = data.request.fromName,
-                        displayName = data.request.fromDisplayName
+                        userId = data.fromId or (data.request and data.request.fromId),
+                        username = data.fromName or (data.request and data.request.fromName),
+                        displayName = data.fromDisplayName or (data.request and data.request.fromDisplayName)
                     })
                     UpdateNotifications()
                 elseif data.type == "friend_requests" then
