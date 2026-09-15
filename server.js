@@ -3,28 +3,42 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
+// Memória temporária do servidor
 const users = {}; 
 const friendRequests = {}; 
+const newFriendsQueue = {}; // Para avisar o usuário B que o usuário A aceitou o pedido
 const pendingMessages = {}; 
-const profiles = {}; // Armazena bios e lista de amigos { bio: "", friends: [] }
 
 // ==========================================
 // ROTAS DE USUÁRIO E PERFIL
 // ==========================================
+
 app.post('/register', (req, res) => {
     const { username, displayName, userId } = req.body;
     if (!username) return res.status(400).send("Faltam dados");
     
-    users[username] = { username, displayName: displayName || username, userId: userId || 1, status: "Online" };
-    if (!profiles[username]) profiles[username] = { bio: "", friends: [] };
+    if (!users[username]) {
+        users[username] = {
+            username,
+            displayName: displayName || username,
+            userId: userId || 1,
+            status: "Online",
+            bio: "Adicionar bio+",
+            friends: [] // Lista de amigos mútuos
+        };
+    } else {
+        users[username].status = "Online";
+        users[username].displayName = displayName || username;
+    }
     res.json({ success: true });
 });
 
 app.get('/users', (req, res) => {
     const query = (req.query.query || "").toLowerCase();
     if (!query) return res.json([]);
+
     const results = [];
     for (const key in users) {
         if (key.toLowerCase().includes(query) || users[key].displayName.toLowerCase().includes(query)) {
@@ -34,21 +48,32 @@ app.get('/users', (req, res) => {
     res.json(results);
 });
 
+// Pegar dados do perfil (Bio, Amigos, etc)
 app.get('/get_profile', (req, res) => {
-    const { target } = req.query;
-    if (!profiles[target]) return res.json({ bio: "", friendsCount: 0 });
-    res.json({ bio: profiles[target].bio, friendsCount: profiles[target].friends.length });
+    const username = req.query.username;
+    if (users[username]) {
+        res.json({
+            bio: users[username].bio,
+            friendsCount: users[username].friends.length
+        });
+    } else {
+        res.json({ bio: "Adicionar bio+", friendsCount: 0 });
+    }
 });
 
+// Atualizar a Bio
 app.post('/update_bio', (req, res) => {
     const { username, bio } = req.body;
-    if (profiles[username]) profiles[username].bio = bio.substring(0, 80);
+    if (users[username]) {
+        users[username].bio = bio;
+    }
     res.json({ success: true });
 });
 
 // ==========================================
-// ROTAS DE STATUS
+// ROTAS DE STATUS E DIGITAÇÃO
 // ==========================================
+
 app.post('/set_status', (req, res) => {
     const { username, status } = req.body;
     if (users[username]) users[username].status = status;
@@ -56,54 +81,83 @@ app.post('/set_status', (req, res) => {
 });
 
 app.get('/get_status', (req, res) => {
-    const status = users[req.query.username] ? users[req.query.username].status : "Offline";
-    res.json({ status });
+    const username = req.query.username;
+    res.json({ status: users[username] ? users[username].status : "Offline" });
 });
 
 // ==========================================
-// ROTAS DE AMIZADE
+// ROTAS DE AMIZADE (COM CORREÇÃO DE SINCRONIA)
 // ==========================================
+
 app.post('/send_request', (req, res) => {
     const { from, fromDisplay, fromId, to } = req.body;
     if (!friendRequests[to]) friendRequests[to] = [];
-    if (!friendRequests[to].find(req => req.from === from)) {
-        friendRequests[to].push({ from, fromDisplay: fromDisplay || from, fromId: fromId || 1 });
+    const alreadySent = friendRequests[to].find(req => req.from === from);
+    if (!alreadySent) {
+        friendRequests[to].push({ from, fromDisplay, fromId });
     }
     res.json({ success: true });
 });
 
-app.get('/get_requests', (req, res) => res.json(friendRequests[req.query.username] || []));
+app.get('/get_requests', (req, res) => {
+    res.json(friendRequests[req.query.username] || []);
+});
 
 app.post('/accept_request', (req, res) => {
     const { user, friend } = req.body;
-    if (friendRequests[user]) friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
     
-    // Adiciona amizade mútua
-    if (profiles[user] && !profiles[user].friends.includes(friend)) profiles[user].friends.push(friend);
-    if (profiles[friend] && !profiles[friend].friends.includes(user)) profiles[friend].friends.push(user);
-    res.json({ success: true });
-});
+    // Remove o pedido da lista
+    if (friendRequests[user]) {
+        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
+    }
 
-app.post('/decline_request', (req, res) => {
-    const { user, friend } = req.body;
-    if (friendRequests[user]) friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
+    // Adiciona na lista de amigos de ambos no servidor
+    if (users[user] && !users[user].friends.includes(friend)) users[user].friends.push(friend);
+    if (users[friend] && !users[friend].friends.includes(user)) users[friend].friends.push(user);
+
+    // Coloca na fila para o 'friend' saber que foi aceito
+    if (!newFriendsQueue[friend]) newFriendsQueue[friend] = [];
+    if (!newFriendsQueue[friend].includes(user)) newFriendsQueue[friend].push(user);
+
     res.json({ success: true });
 });
 
 app.post('/remove_friend', (req, res) => {
     const { user, friend } = req.body;
-    if (profiles[user]) profiles[user].friends = profiles[user].friends.filter(f => f !== friend);
-    if (profiles[friend]) profiles[friend].friends = profiles[friend].friends.filter(f => f !== user);
+    if (users[user]) users[user].friends = users[user].friends.filter(f => f !== friend);
+    if (users[friend]) users[friend].friends = users[friend].friends.filter(f => f !== user);
+    
+    // Avisa o outro para remover também (usando comando via chat invisível)
+    if (!pendingMessages[friend]) pendingMessages[friend] = {};
+    if (!pendingMessages[friend][user]) pendingMessages[friend][user] = [];
+    pendingMessages[friend][user].push({ action: "unfriend", sender: user, timestamp: Date.now() });
+
     res.json({ success: true });
 });
 
-app.get('/get_friends', (req, res) => {
-    res.json(profiles[req.query.username] ? profiles[req.query.username].friends : []);
+app.post('/decline_request', (req, res) => {
+    const { user, friend } = req.body;
+    if (friendRequests[user]) {
+        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
+    }
+    res.json({ success: true });
+});
+
+// Rota para o usuário puxar quem aceitou ele
+app.get('/get_new_friends', (req, res) => {
+    const username = req.query.username;
+    if (newFriendsQueue[username]) {
+        const newlyAccepted = [...newFriendsQueue[username]];
+        newFriendsQueue[username] = [];
+        return res.json(newlyAccepted);
+    }
+    res.json([]);
 });
 
 // ==========================================
 // ROTAS DE CHAT PRIVADO
 // ==========================================
+
 app.post('/send_message', (req, res) => {
     const { from, to, msg } = req.body;
     if (!pendingMessages[to]) pendingMessages[to] = {};
@@ -123,4 +177,4 @@ app.get('/get_messages', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => { console.log(`Servidor rodando na porta ${PORT}`); });
