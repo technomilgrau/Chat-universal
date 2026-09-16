@@ -1,172 +1,88 @@
 const express = require('express');
 const cors = require('cors');
+
 const app = express();
-
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
-// Armazenamento em memória (Dados Públicos e Relacionais)
-const users = {}; 
-const friendRequests = []; 
-const messageQueue = {}; 
-const syncRequests = {}; 
+// ==========================================
+// BANCO DE DADOS EM MEMÓRIA
+// ==========================================
+const users = {}; // { username: { displayName, userId, status, bio, friends: [] } }
+const friendRequests = {}; // { to: [{from, fromDisplay, fromId}] }
+const pendingMessages = {}; // { to: { from: { msgs: [], edits: [], deletes: [] } } }
+const globalEvents = {}; // { username: [ event1, event2 ] }
+const pendingSyncs = {}; // { to: { from: historyArray } }
 
+// ==========================================
+// ROTAS DE USUÁRIO, PESQUISA E PERFIL
+// ==========================================
 app.post('/register', (req, res) => {
     const { username, displayName, userId } = req.body;
+    if (!username) return res.status(400).send("Faltam dados");
+    
     if (!users[username]) {
-        users[username] = { username, displayName, userId, bio: "", friends: [], status: 'Online' };
+        users[username] = {
+            username,
+            displayName: displayName || username,
+            userId: userId || 1,
+            status: "Online",
+            bio: "",
+            friends: []
+        };
     } else {
-        users[username].displayName = displayName;
-        users[username].userId = userId;
-        users[username].status = 'Online';
+        users[username].displayName = displayName || users[username].displayName;
+        users[username].userId = userId || users[username].userId;
+        users[username].status = "Online";
     }
+    if (!globalEvents[username]) globalEvents[username] = [];
     res.json({ success: true });
 });
 
 app.get('/users', (req, res) => {
-    const query = (req.query.query || '').toLowerCase();
-    const results = Object.values(users)
-        .filter(u => u.username.toLowerCase().includes(query) || u.displayName.toLowerCase().includes(query))
-        .map(u => ({
-            username: u.username,
-            displayName: u.displayName,
-            userId: u.userId
-        }));
+    const query = (req.query.query || "").toLowerCase();
+    if (!query) return res.json([]);
+
+    const results = [];
+    for (const key in users) {
+        if (key.toLowerCase().includes(query) || users[key].displayName.toLowerCase().includes(query)) {
+            results.push({
+                username: users[key].username,
+                displayName: users[key].displayName,
+                userId: users[key].userId,
+                friendCount: users[key].friends.length
+            });
+        }
+    }
     res.json(results);
 });
 
-// Retorna dados do Perfil (contagem de amigos e bio)
-app.get('/profile', (req, res) => {
-    const { username } = req.query;
-    const u = users[username];
-    if (u) {
+app.get('/get_profile', (req, res) => {
+    const username = req.query.username;
+    if (users[username]) {
         res.json({
-            username: u.username,
-            displayName: u.displayName,
-            userId: u.userId,
-            bio: u.bio,
-            friendCount: u.friends.length,
-            friends: u.friends
+            username: users[username].username,
+            displayName: users[username].displayName,
+            userId: users[username].userId,
+            bio: users[username].bio || "",
+            friendCount: users[username].friends.length
         });
     } else {
-        res.status(404).json({ error: 'User not found' });
+        res.json(null);
     }
 });
 
 app.post('/update_bio', (req, res) => {
     const { username, bio } = req.body;
     if (users[username]) {
-        users[username].bio = bio.substring(0, 80); // Limite 80 caracteres
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'User not found' });
-    }
-});
-
-app.post('/send_request', (req, res) => {
-    const { from, fromDisplay, fromId, to } = req.body;
-    if (users[to] && !users[to].friends.includes(from)) {
-        const existing = friendRequests.find(r => r.from === from && r.to === to);
-        if (!existing) {
-            friendRequests.push({ from, fromDisplay, fromId, to });
-        }
+        users[username].bio = bio.substring(0, 80); // limite back-end
     }
     res.json({ success: true });
 });
 
-app.get('/get_requests', (req, res) => {
-    const { username } = req.query;
-    const reqs = friendRequests.filter(r => r.to === username);
-    res.json(reqs);
-});
-
-// Garante amizade recíproca para os dois lados
-app.post('/accept_request', (req, res) => {
-    const { user, friend } = req.body;
-    const index = friendRequests.findIndex(r => r.from === friend && r.to === user);
-    if (index !== -1) friendRequests.splice(index, 1);
-    
-    if (users[user] && !users[user].friends.includes(friend)) users[user].friends.push(friend);
-    if (users[friend] && !users[friend].friends.includes(user)) users[friend].friends.push(user);
-    
-    res.json({ success: true });
-});
-
-app.post('/decline_request', (req, res) => {
-    const { user, friend } = req.body;
-    const index = friendRequests.findIndex(r => r.from === friend && r.to === user);
-    if (index !== -1) friendRequests.splice(index, 1);
-    res.json({ success: true });
-});
-
-app.post('/remove_friend', (req, res) => {
-    const { user, friend } = req.body;
-    if (users[user]) users[user].friends = users[user].friends.filter(f => f !== friend);
-    if (users[friend]) users[friend].friends = users[friend].friends.filter(f => f !== user);
-    res.json({ success: true });
-});
-
-app.get('/check_friendship', (req, res) => {
-    const { user, friend } = req.query;
-    let status = 'none';
-    if (users[user] && users[user].friends.includes(friend)) {
-        status = 'friends';
-    } else if (friendRequests.find(r => r.from === user && r.to === friend)) {
-        status = 'pending_sent';
-    } else if (friendRequests.find(r => r.from === friend && r.to === user)) {
-        status = 'pending_received';
-    }
-    res.json({ status });
-});
-
-// Transmissão de Mensagens
-app.post('/send_message', (req, res) => {
-    const { from, to, msg } = req.body;
-    if (!messageQueue[to]) messageQueue[to] = [];
-    messageQueue[to].push({ ...msg, to, isAction: false, isSync: false });
-    res.json({ success: true });
-});
-
-app.post('/message_action', (req, res) => {
-    const { from, to, msgId, action, newText } = req.body;
-    if (!messageQueue[to]) messageQueue[to] = [];
-    messageQueue[to].push({ isAction: true, action, msgId, newText, from, to });
-    res.json({ success: true });
-});
-
-// Sincronização/Recuperação de Histórico
-app.post('/request_sync', (req, res) => {
-    const { from, to } = req.body;
-    if (!syncRequests[to]) syncRequests[to] = [];
-    syncRequests[to].push({ from });
-    res.json({ success: true });
-});
-
-app.get('/get_sync_requests', (req, res) => {
-    const { user } = req.query;
-    const reqs = syncRequests[user] || [];
-    syncRequests[user] = [];
-    res.json(reqs);
-});
-
-app.post('/send_sync_data', (req, res) => {
-    const { from, to, history } = req.body;
-    if (!messageQueue[to]) messageQueue[to] = [];
-    messageQueue[to].push({ isSync: true, history, from });
-    res.json({ success: true });
-});
-
-app.get('/get_messages', (req, res) => {
-    const { to } = req.query;
-    if (messageQueue[to] && messageQueue[to].length > 0) {
-        const msgs = [...messageQueue[to]];
-        messageQueue[to] = [];
-        res.json(msgs);
-    } else {
-        res.json([]);
-    }
-});
-
+// ==========================================
+// ROTAS DE STATUS E AMIZADES
+// ==========================================
 app.post('/set_status', (req, res) => {
     const { username, status } = req.body;
     if (users[username]) users[username].status = status;
@@ -174,9 +90,139 @@ app.post('/set_status', (req, res) => {
 });
 
 app.get('/get_status', (req, res) => {
-    const { username } = req.query;
-    res.json({ status: users[username] ? users[username].status : 'Offline' });
+    const username = req.query.username;
+    res.json({ status: users[username] ? users[username].status : "Offline" });
+});
+
+app.post('/send_request', (req, res) => {
+    const { from, fromDisplay, fromId, to } = req.body;
+    if (!friendRequests[to]) friendRequests[to] = [];
+    if (users[from] && users[from].friends.includes(to)) return res.json({ success: false, reason: "Já são amigos" });
+
+    const alreadySent = friendRequests[to].find(req => req.from === from);
+    if (!alreadySent) {
+        friendRequests[to].push({ from, fromDisplay: fromDisplay || from, fromId: fromId || 1 });
+    }
+    res.json({ success: true });
+});
+
+app.get('/get_requests', (req, res) => {
+    res.json(friendRequests[req.query.username] || []);
+});
+
+app.post('/accept_request', (req, res) => {
+    const { user, friend } = req.body;
+    
+    if (friendRequests[user]) {
+        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
+    }
+    
+    // Adiciona para os dois lados
+    if (users[user] && !users[user].friends.includes(friend)) users[user].friends.push(friend);
+    if (users[friend] && !users[friend].friends.includes(user)) users[friend].friends.push(user);
+
+    // Envia evento global para o amigo saber que foi aceito
+    if (!globalEvents[friend]) globalEvents[friend] = [];
+    globalEvents[friend].push({ type: 'friend_accept', username: user });
+
+    res.json({ success: true });
+});
+
+app.post('/decline_request', (req, res) => {
+    const { user, friend } = req.body;
+    if (friendRequests[user]) {
+        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
+    }
+    res.json({ success: true });
+});
+
+app.post('/unfriend', (req, res) => {
+    const { user, friend } = req.body;
+    if (users[user]) users[user].friends = users[user].friends.filter(f => f !== friend);
+    if (users[friend]) users[friend].friends = users[friend].friends.filter(f => f !== user);
+
+    if (!globalEvents[friend]) globalEvents[friend] = [];
+    globalEvents[friend].push({ type: 'unfriend', username: user });
+    
+    res.json({ success: true });
+});
+
+// ==========================================
+// ROTAS DE CHAT E MENSAGENS (TEXTO, EDIT, DEL)
+// ==========================================
+app.post('/send_message', (req, res) => {
+    const { from, to, msg } = req.body;
+    if (!pendingMessages[to]) pendingMessages[to] = {};
+    if (!pendingMessages[to][from]) pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] };
+    
+    pendingMessages[to][from].msgs.push(msg);
+    res.json({ success: true });
+});
+
+app.post('/edit_message', (req, res) => {
+    const { from, to, msgId, newText } = req.body;
+    if (!pendingMessages[to]) pendingMessages[to] = {};
+    if (!pendingMessages[to][from]) pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] };
+    
+    pendingMessages[to][from].edits.push({ msgId, newText });
+    res.json({ success: true });
+});
+
+app.post('/delete_message', (req, res) => {
+    const { from, to, msgId } = req.body;
+    if (!pendingMessages[to]) pendingMessages[to] = {};
+    if (!pendingMessages[to][from]) pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] };
+    
+    pendingMessages[to][from].deletes.push(msgId);
+    res.json({ success: true });
+});
+
+app.get('/get_messages', (req, res) => {
+    const { from, to } = req.query;
+    if (pendingMessages[to] && pendingMessages[to][from]) {
+        const data = pendingMessages[to][from];
+        pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] };
+        return res.json(data);
+    }
+    res.json({ msgs: [], edits: [], deletes: [] });
+});
+
+// ==========================================
+// SINCRONIZAÇÃO E EVENTOS GLOBAIS
+// ==========================================
+app.get('/get_global_events', (req, res) => {
+    const username = req.query.username;
+    if (globalEvents[username] && globalEvents[username].length > 0) {
+        const events = globalEvents[username];
+        globalEvents[username] = [];
+        return res.json(events);
+    }
+    res.json([]);
+});
+
+app.post('/request_sync', (req, res) => {
+    const { from, to } = req.body;
+    if (!globalEvents[to]) globalEvents[to] = [];
+    globalEvents[to].push({ type: 'sync_request', username: from });
+    res.json({ success: true });
+});
+
+app.post('/provide_sync', (req, res) => {
+    const { from, to, history } = req.body;
+    if (!pendingSyncs[to]) pendingSyncs[to] = {};
+    pendingSyncs[to][from] = history;
+    res.json({ success: true });
+});
+
+app.get('/get_sync', (req, res) => {
+    const username = req.query.username;
+    if (pendingSyncs[username]) {
+        const data = pendingSyncs[username];
+        pendingSyncs[username] = {};
+        return res.json(data);
+    }
+    res.json({});
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
