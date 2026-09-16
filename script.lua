@@ -1,6 +1,6 @@
 -- ==========================================
--- CHAT-UNIVERSAL V5 (Atualizado com Bios, Sincronização, Edição, Figurinhas)
--- Autor: techno_milgrau (modificações UI / API integradas)
+-- CHAT-UNIVERSAL V6 (Presença, Seleção e Header Dinâmico)
+-- Autor: techno_milgrau
 -- ==========================================
 
 local Players = game:GetService("Players")
@@ -124,6 +124,19 @@ task.spawn(function()
     end)
 end)
 
+-- Heartbeat dinâmico para presença
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            HttpService:RequestAsync({
+                Url = SERVER_URL .. "/heartbeat", Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({ username = player.Name })
+            })
+        end)
+    end
+end)
+
 -- ==========================================
 -- INTERFACE PRINCIPAL
 -- ==========================================
@@ -184,7 +197,7 @@ MinimizeBtn.Size = UDim2.new(0, 30, 0, 30) MinimizeBtn.Position = UDim2.new(1, -
 MinimizeBtn.Text = "−" MinimizeBtn.TextColor3 = Color3.fromRGB(200, 200, 200) MinimizeBtn.Font = Enum.Font.GothamBold MinimizeBtn.TextSize = 20
 
 local MinimizedIcon = Instance.new("TextButton", MainFrameWrapper)
-MinimizedIcon.Size = UDim2.new(1, 0, 1, 0) MinimizedIcon.BackgroundTransparency = 1 MinimizedIcon.Text = "C" MinimizedIcon.TextColor3 = Color3.fromRGB(255, 255, 255) MinimizedIcon.Font = Enum.Font.GothamBold MinimizedIcon.TextSize = 24 MinimizedIcon.Visible = false
+MinimizedIcon.Size = UDim2.new(1, 0, 1, 0) MinimizedIcon.BackgroundTransparency = 1 MinimizedIcon.Text = "💬" MinimizedIcon.TextColor3 = Color3.fromRGB(255, 255, 255) MinimizedIcon.Font = Enum.Font.GothamBold MinimizedIcon.TextSize = 24 MinimizedIcon.Visible = false
 
 local isMinimized = false
 local originalSize = UDim2.new(0, 300, 0, 500)
@@ -249,7 +262,7 @@ end
 
 -- OVERLAYS E POPUPS
 local ModalContainer = Instance.new("Frame", MainFrameWrapper)
-ModalContainer.Size = UDim2.new(1,0,1,0) ModalContainer.BackgroundColor3 = Color3.fromRGB(0,0,0) ModalContainer.BackgroundTransparency = 0.5 ModalContainer.Visible = false ModalContainer.ZIndex = 100
+ModalContainer.Size = UDim2.new(1,0,1,0) ModalContainer.BackgroundColor3 = Color3.fromRGB(0,0,0) ModalContainer.BackgroundTransparency = 0.7 ModalContainer.Visible = false ModalContainer.ZIndex = 100
 
 local function ShowPopup(title, text, btn1Text, btn2Text, callback1, callback2)
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
@@ -278,7 +291,7 @@ local function OpenBioEditor(oldBio)
         pcall(function()
             HttpService:RequestAsync({ Url = SERVER_URL .. "/update_bio", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({username=player.Name, bio=newBio}) })
         end)
-        if CurrentMenu == ProfileMenu then OpenProfileUI(player.Name) end -- Reload profile
+        if CurrentMenu == ProfileMenu then OpenProfileUI(player.Name) end
     end)
     b2.MouseButton1Click:Connect(function() ModalContainer.Visible=false end)
 end
@@ -304,7 +317,7 @@ MessagesBtn.MouseButton1Click:Connect(function() OpenMenu(FriendsMenu) LoadFrien
 NotifyBtn.MouseButton1Click:Connect(function() if CurrentMenu ~= NotificationsMenu then OpenMenu(NotificationsMenu) LoadNotificationsUI() end end)
 
 -- ==========================================
--- ABA 5: PERFIL E BIO (NOVO)
+-- ABA PERFIL E BIO
 -- ==========================================
 createTopBar(ProfileMenu, "Perfil")
 local ProfAvatar = Instance.new("ImageLabel", ProfileMenu) ProfAvatar.Size = UDim2.new(0, 90, 0, 90) ProfAvatar.Position = UDim2.new(0.5, -45, 0, 50) ProfAvatar.BackgroundColor3 = Color3.fromRGB(40,40,45) Instance.new("UICorner", ProfAvatar).CornerRadius = UDim.new(1,0)
@@ -323,7 +336,13 @@ function OpenProfileUI(targetUsername)
             local data = HttpService:JSONDecode(r.Body)
             if not data then return end
             pcall(function() ProfAvatar.Image = "rbxthumb://type=AvatarHeadShot&id="..(data.userId or 1).."&w=150&h=150" end)
-            ProfDName.Text = data.displayName
+            
+            if targetUsername == player.Name then
+                ProfDName.Text = data.displayName .. " (Você)"
+            else
+                ProfDName.Text = data.displayName
+            end
+            
             ProfUName.Text = "@" .. data.username
             ProfStats.Text = "amigos " .. tostring(data.friendCount or 0)
             
@@ -334,21 +353,16 @@ function OpenProfileUI(targetUsername)
                 ProfBtn.Visible = false
                 if data.bio == "" then ProfBio.Text = "adicionar bio+" ProfBio.TextColor3 = Color3.fromRGB(255,255,255) ProfBio.Font = Enum.Font.GothamBold
                 else ProfBio.Text = data.bio ProfBio.TextColor3 = Color3.fromRGB(220,220,220) ProfBio.Font = Enum.Font.Gotham end
-                
-                ProfBio.MouseButton1Click:Connect(function()
-                    if data.bio == "" then OpenBioEditor("") else ShowPopup("Editar biografia?", "", "Sim", "Não", function() OpenBioEditor(data.bio) end) end
-                end)
             else
                 ProfBtn.Visible = true
                 ProfBio.Text = data.bio == "" and "Sem biografia." or data.bio
                 ProfBio.TextColor3 = Color3.fromRGB(220,220,220) ProfBio.Font = Enum.Font.Gotham
-                ProfBio.MouseButton1Click:Connect(function() end) -- Do nothing for others
                 
                 if isFriend then
                     ProfBtn.Text = "Mensagem" ProfBtn.BackgroundColor3 = Color3.fromRGB(50,50,55)
                     ProfBtn.MouseButton1Click:Connect(function() OpenPrivateChat(data.username, data.displayName, data.userId) end)
                 else
-                    ProfBtn.Text = "Adicionar" ProfBtn.BackgroundColor3 = Color3.fromRGB(233,30,99) -- Rosa estilo tiktok/instagram
+                    ProfBtn.Text = "Adicionar" ProfBtn.BackgroundColor3 = Color3.fromRGB(233,30,99)
                     ProfBtn.MouseButton1Click:Connect(function()
                         if ProfBtn.Text == "Adicionar" then
                             ProfBtn.Text = "Enviado" ProfBtn.BackgroundColor3 = Color3.fromRGB(100,100,100)
@@ -357,6 +371,13 @@ function OpenProfileUI(targetUsername)
                     end)
                 end
             end
+            
+            -- Evento seguro para bio
+            ProfBio.MouseButton1Click:Connect(function()
+                if isMe then
+                    if data.bio == "" then OpenBioEditor("") else ShowPopup("Editar biografia?", "", "Sim", "Não", function() OpenBioEditor(data.bio) end) end
+                end
+            end)
         end
     end)
 end
@@ -371,30 +392,35 @@ local function CreateUserEntry(parent, displayName, username, userId, mode, stat
     pcall(function() avatarBtn.Image = "rbxthumb://type=AvatarHeadShot&id="..userId.."&w=150&h=150" end)
     avatarBtn.MouseButton1Click:Connect(function() OpenProfileUI(username) end) -- Somente a foto abre o perfil
     
-    local dName = Instance.new("TextLabel", frame) dName.Size = UDim2.new(0, 100, 0, 20) dName.Position = UDim2.new(0, 60, 0, 8) dName.BackgroundTransparency = 1 dName.Text = displayName dName.TextColor3 = Color3.fromRGB(255, 255, 255) dName.Font = Enum.Font.GothamBold dName.TextXAlignment = Enum.TextXAlignment.Left
+    local txtDName = displayName
+    if username == player.Name then txtDName = displayName .. " (Você)" end
+
+    local dName = Instance.new("TextLabel", frame) dName.Size = UDim2.new(0, 100, 0, 20) dName.Position = UDim2.new(0, 60, 0, 8) dName.BackgroundTransparency = 1 dName.Text = txtDName dName.TextColor3 = Color3.fromRGB(255, 255, 255) dName.Font = Enum.Font.GothamBold dName.TextXAlignment = Enum.TextXAlignment.Left
     local uName = Instance.new("TextLabel", frame) uName.Size = UDim2.new(0, 90, 0, 16) uName.Position = UDim2.new(0, 60, 0, 32) uName.BackgroundTransparency = 1 uName.Text = "@" .. username uName.TextColor3 = Color3.fromRGB(180, 180, 180) uName.Font = Enum.Font.Gotham uName.TextSize = 10 uName.TextXAlignment = Enum.TextXAlignment.Left
     
     if mode == "Search" then
-        local actionBtn = Instance.new("TextButton", frame) actionBtn.Size = UDim2.new(0, 75, 0, 26) actionBtn.Position = UDim2.new(1, -85, 0.5, -13) actionBtn.Font = Enum.Font.GothamBold actionBtn.TextSize = 11 Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 6)
-        local isFriend = table.find(LocalData.Friends, username) ~= nil
-        if isFriend then
-            actionBtn.Text = "Amigos" actionBtn.BackgroundColor3 = Color3.fromRGB(80,80,90) actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
-            actionBtn.MouseButton1Click:Connect(function()
-                ShowPopup("Desfazer amizade?", "Você não poderá mais trocar mensagens com " .. displayName .. ".", "Sim", "Não", function()
-                    pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/unfriend", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({user=player.Name, friend=username}) }) end)
-                    local idx = table.find(LocalData.Friends, username)
-                    if idx then table.remove(LocalData.Friends, idx) SaveFriends() end
-                    frame:Destroy()
+        if username ~= player.Name then -- Não mostra botão de ação para si próprio
+            local actionBtn = Instance.new("TextButton", frame) actionBtn.Size = UDim2.new(0, 75, 0, 26) actionBtn.Position = UDim2.new(1, -85, 0.5, -13) actionBtn.Font = Enum.Font.GothamBold actionBtn.TextSize = 11 Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 6)
+            local isFriend = table.find(LocalData.Friends, username) ~= nil
+            if isFriend then
+                actionBtn.Text = "Amigos" actionBtn.BackgroundColor3 = Color3.fromRGB(80,80,90) actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
+                actionBtn.MouseButton1Click:Connect(function()
+                    ShowPopup("Desfazer amizade?", "Você não poderá mais trocar mensagens com " .. displayName .. ".", "Sim", "Não", function()
+                        pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/unfriend", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({user=player.Name, friend=username}) }) end)
+                        local idx = table.find(LocalData.Friends, username)
+                        if idx then table.remove(LocalData.Friends, idx) SaveFriends() end
+                        frame:Destroy()
+                    end)
                 end)
-            end)
-        else
-            actionBtn.Text = "Adicionar" actionBtn.BackgroundColor3 = Color3.fromRGB(233,30,99) actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
-            actionBtn.MouseButton1Click:Connect(function()
-                if actionBtn.Text == "Adicionar" then
-                    actionBtn.Text = "Enviado" actionBtn.BackgroundColor3 = Color3.fromRGB(100,100,100)
-                    pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/send_request", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({from = player.Name, fromDisplay = player.DisplayName, fromId = player.UserId, to = username}) }) end)
-                end
-            end)
+            else
+                actionBtn.Text = "Adicionar" actionBtn.BackgroundColor3 = Color3.fromRGB(233,30,99) actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
+                actionBtn.MouseButton1Click:Connect(function()
+                    if actionBtn.Text == "Adicionar" then
+                        actionBtn.Text = "Enviado" actionBtn.BackgroundColor3 = Color3.fromRGB(100,100,100)
+                        pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/send_request", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({from = player.Name, fromDisplay = player.DisplayName, fromId = player.UserId, to = username}) }) end)
+                    end
+                end)
+            end
         end
     elseif mode == "Friend" then
         local statusLabel = Instance.new("TextLabel", frame) statusLabel.Size = UDim2.new(0, 70, 0, 16) statusLabel.Position = UDim2.new(1, -78, 0.5, -8) statusLabel.BackgroundTransparency = 1 statusLabel.Font = Enum.Font.Gotham statusLabel.TextSize = 10 statusLabel.TextXAlignment = Enum.TextXAlignment.Right
@@ -428,7 +454,7 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
             if s and r.Success then
                 local users = HttpService:JSONDecode(r.Body)
                 for _, u in ipairs(users) do
-                    if u.username ~= player.Name then CreateUserEntry(SearchResults, u.displayName, u.username, u.userId, "Search") end
+                    CreateUserEntry(SearchResults, u.displayName, u.username, u.userId, "Search")
                 end
             end
         end)
@@ -479,15 +505,25 @@ FriendsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 
 local ActiveChatTarget = "" local ActiveChatTargetDisplay = "" local ActiveChatTargetId = 1
 
-local _, ChatBarObj = createTopBar(PrivateChatMenu, "Chat", function() CloseMenu() ActiveChatTarget = "" end)
-local ChatTitle = ChatBarObj:FindFirstChildOfClass("TextLabel")
-local SyncBtn = Instance.new("TextButton", ChatBarObj) SyncBtn.Size = UDim2.new(0,30,0,30) SyncBtn.Position = UDim2.new(1,-40,0,5) SyncBtn.BackgroundTransparency=1 SyncBtn.Text="🔄" SyncBtn.TextColor3=Color3.fromRGB(200,200,200) SyncBtn.Font=Enum.Font.GothamBold SyncBtn.TextSize=14
+-- Construção Customizada do Cabeçalho de Chat Privado
+local ChatBarObj = Instance.new("Frame", PrivateChatMenu) ChatBarObj.Size = UDim2.new(1, 0, 0, 45) ChatBarObj.BackgroundTransparency = 1
+local ChatBackBtn = Instance.new("TextButton", ChatBarObj) ChatBackBtn.Size = UDim2.new(0, 30, 0, 30) ChatBackBtn.Position = UDim2.new(0, 5, 0, 7) ChatBackBtn.BackgroundTransparency = 1 ChatBackBtn.Text = "◀" ChatBackBtn.TextColor3 = Color3.fromRGB(200, 200, 200) ChatBackBtn.Font = Enum.Font.GothamBold ChatBackBtn.TextSize = 18
+ChatBackBtn.MouseButton1Click:Connect(function() CloseMenu() ActiveChatTarget = "" end)
+
+local ChatAvatar = Instance.new("ImageLabel", ChatBarObj) ChatAvatar.Size = UDim2.new(0, 32, 0, 32) ChatAvatar.Position = UDim2.new(0, 40, 0, 6) ChatAvatar.BackgroundColor3 = Color3.fromRGB(40,40,45) Instance.new("UICorner", ChatAvatar).CornerRadius = UDim.new(1, 0)
+local ChatTitle = Instance.new("TextLabel", ChatBarObj) ChatTitle.Size = UDim2.new(1, -120, 0, 16) ChatTitle.Position = UDim2.new(0, 80, 0, 6) ChatTitle.BackgroundTransparency = 1 ChatTitle.TextColor3 = Color3.fromRGB(255, 255, 255) ChatTitle.Font = Enum.Font.GothamBold ChatTitle.TextSize = 14 ChatTitle.TextXAlignment = Enum.TextXAlignment.Left
+local ChatStatus = Instance.new("TextLabel", ChatBarObj) ChatStatus.Size = UDim2.new(1, -120, 0, 14) ChatStatus.Position = UDim2.new(0, 80, 0, 24) ChatStatus.BackgroundTransparency = 1 ChatStatus.TextColor3 = Color3.fromRGB(150, 150, 150) ChatStatus.Font = Enum.Font.Gotham ChatStatus.TextSize = 10 ChatStatus.TextXAlignment = Enum.TextXAlignment.Left
+
+local SyncBtn = Instance.new("TextButton", ChatBarObj) SyncBtn.Size = UDim2.new(0,30,0,30) SyncBtn.Position = UDim2.new(1,-40,0,7) SyncBtn.BackgroundTransparency=1 SyncBtn.Text="🔄" SyncBtn.TextColor3=Color3.fromRGB(200,200,200) SyncBtn.Font=Enum.Font.GothamBold SyncBtn.TextSize=14
 SyncBtn.MouseButton1Click:Connect(function()
     if ActiveChatTarget ~= "" then pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/request_sync", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({from = player.Name, to = ActiveChatTarget}) }) end) end
 end)
 
 function OpenPrivateChat(username, displayName, userId)
-    ActiveChatTarget = username ActiveChatTargetDisplay = displayName or username ActiveChatTargetId = userId or 1 ChatTitle.Text = ActiveChatTargetDisplay
+    ActiveChatTarget = username ActiveChatTargetDisplay = displayName or username ActiveChatTargetId = userId or 1 
+    ChatTitle.Text = ActiveChatTargetDisplay
+    ChatStatus.Text = "Carregando..."
+    pcall(function() ChatAvatar.Image = "rbxthumb://type=AvatarHeadShot&id="..ActiveChatTargetId.."&w=150&h=150" end)
     OpenMenu(PrivateChatMenu) RefreshChatUI(LoadChat(username))
 end
 
@@ -496,7 +532,8 @@ function LoadFriendsUI()
     for _, friendName in ipairs(LocalData.Friends) do
         task.spawn(function()
             local targetId = 1 pcall(function() targetId = Players:GetUserIdFromNameAsync(friendName) end)
-            local statusText = "Offline" pcall(function() local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_status?username=" .. friendName, Method = "GET"}) if r.Success then statusText = HttpService:JSONDecode(r.Body).status end end)
+            local statusText = "Offline" 
+            pcall(function() local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_status?username=" .. friendName .. "&viewer=" .. player.Name, Method = "GET"}) if r.Success then statusText = HttpService:JSONDecode(r.Body).status end end)
             CreateUserEntry(FriendsList, friendName, friendName, targetId, "Friend", statusText)
         end)
     end
@@ -552,6 +589,86 @@ StickerBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Sistema de Digitando... (Dispara timeout no node)
+local typeDebounce = false
+ChatBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if ChatBox.Text ~= "" and ActiveChatTarget ~= "" then
+        if not typeDebounce then
+            typeDebounce = true
+            task.spawn(function()
+                pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/set_typing", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({from = player.Name, to = ActiveChatTarget}) }) end)
+            end)
+            task.delay(1, function() typeDebounce = false end)
+        end
+    end
+end)
+
+-- ==========================================
+-- MENU DE OPÇÕES (PRESSIONAR E SEGURAR MENSAGEM)
+-- ==========================================
+local SelectionOverlay = Instance.new("TextButton", PrivateChatMenu)
+SelectionOverlay.Size = UDim2.new(1, 0, 1, 0)
+SelectionOverlay.BackgroundTransparency = 1
+SelectionOverlay.Text = ""
+SelectionOverlay.ZIndex = 40
+SelectionOverlay.Visible = false
+
+local MessageActionPopup = Instance.new("Frame", SelectionOverlay)
+MessageActionPopup.Size = UDim2.new(0, 140, 0, 70)
+MessageActionPopup.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+Instance.new("UICorner", MessageActionPopup).CornerRadius = UDim.new(0, 8)
+
+local EditMsgBtn = Instance.new("TextButton", MessageActionPopup)
+EditMsgBtn.Size = UDim2.new(1, 0, 0.5, 0)
+EditMsgBtn.BackgroundTransparency = 1
+EditMsgBtn.Text = "✏️ Editar"
+EditMsgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+EditMsgBtn.Font = Enum.Font.GothamBold
+
+local DelMsgBtn = Instance.new("TextButton", MessageActionPopup)
+DelMsgBtn.Size = UDim2.new(1, 0, 0.5, 0)
+DelMsgBtn.Position = UDim2.new(0, 0, 0.5, 0)
+DelMsgBtn.BackgroundTransparency = 1
+DelMsgBtn.Text = "🗑️ Apagar"
+DelMsgBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+DelMsgBtn.Font = Enum.Font.GothamBold
+
+local activeMsgForAction = nil
+
+SelectionOverlay.MouseButton1Click:Connect(function()
+    SelectionOverlay.Visible = false
+    activeMsgForAction = nil
+end)
+
+EditMsgBtn.MouseButton1Click:Connect(function()
+    SelectionOverlay.Visible = false
+    if activeMsgForAction and activeMsgForAction.type == "text" then
+        local msg = activeMsgForAction
+        for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end ModalContainer.Visible=true
+        local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,240,0,140) box.Position = UDim2.new(0.5,-120,0.5,-70) box.BackgroundColor3 = Color3.fromRGB(35,35,40) Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
+        local input = Instance.new("TextBox", box) input.Size=UDim2.new(1,-20,0,60) input.Position=UDim2.new(0,10,0,20) input.BackgroundColor3=Color3.fromRGB(20,20,25) input.TextColor3=Color3.fromRGB(255,255,255) input.Text=msg.text input.MultiLine=true input.TextWrapped=true input.Font=Enum.Font.Gotham input.TextSize=12
+        local bSave = Instance.new("TextButton", box) bSave.Size=UDim2.new(1,-20,0,30) bSave.Position=UDim2.new(0,10,1,-40) bSave.BackgroundColor3=Color3.fromRGB(70,130,180) bSave.Text="Salvar Edição" bSave.TextColor3=Color3.fromRGB(255,255,255) bSave.Font=Enum.Font.GothamBold
+        bSave.MouseButton1Click:Connect(function()
+            ModalContainer.Visible=false local newTxt = input.Text
+            msg.text = newTxt msg.isEdited = true
+            local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.text=newTxt m.isEdited=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
+            pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/edit_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id, newText=newTxt}) }) end)
+        end)
+    end
+end)
+
+DelMsgBtn.MouseButton1Click:Connect(function()
+    SelectionOverlay.Visible = false
+    if activeMsgForAction then
+        local msg = activeMsgForAction
+        msg.isDeleted = true
+        local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.isDeleted=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
+        pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/delete_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id}) }) end)
+    end
+end)
+
+-- ==========================================
+
 local function FormatMessageTime(t) return os.date("%H:%M", t) end
 
 function RenderMessageItem(msg)
@@ -572,36 +689,37 @@ function RenderMessageItem(msg)
     else
         local body = Instance.new("TextLabel", msgFrame) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.TextYAlignment = Enum.TextYAlignment.Top body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(220, 220, 220) body.TextWrapped = true body.RichText = true
         body.Text = msg.text .. (msg.isEdited and " <font color=\"rgb(150,150,150)\">editado</font>" or "")
-        local bounds = TextService:GetTextSize(body.Text, 12, Enum.Font.Gotham, Vector2.new(190, 10000)) -- 190 para evitar sair da tela
+        local bounds = TextService:GetTextSize(body.Text, 12, Enum.Font.Gotham, Vector2.new(190, 10000))
         body.Size = UDim2.new(0, 190, 0, bounds.Y)
         contentHeight = bounds.Y
     end
     msgFrame.Size = UDim2.new(1, 0, 0, contentHeight + 22)
     
-    -- Editar/Apagar interatividade
+    -- Editar/Apagar interatividade - SOMENTE PRESSIONANDO E SEGURANDO (Hold)
     if msg.sender == player.Name and not msg.isDeleted then
-        local btn = Instance.new("TextButton", msgFrame) btn.Size = UDim2.new(1,0,1,0) btn.BackgroundTransparency=1 btn.Text=""
-        btn.MouseButton1Click:Connect(function()
-            ShowPopup("Opções da mensagem", "", msg.type == "text" and "Editar" or "Ok", "Apagar", 
-            function() -- Editar
-                if msg.type == "text" then
-                    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end ModalContainer.Visible=true
-                    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,240,0,140) box.Position = UDim2.new(0.5,-120,0.5,-70) box.BackgroundColor3 = Color3.fromRGB(35,35,40) Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
-                    local input = Instance.new("TextBox", box) input.Size=UDim2.new(1,-20,0,60) input.Position=UDim2.new(0,10,0,20) input.BackgroundColor3=Color3.fromRGB(20,20,25) input.TextColor3=Color3.fromRGB(255,255,255) input.Text=msg.text input.MultiLine=true input.TextWrapped=true input.Font=Enum.Font.Gotham input.TextSize=12
-                    local bSave = Instance.new("TextButton", box) bSave.Size=UDim2.new(1,-20,0,30) bSave.Position=UDim2.new(0,10,1,-40) bSave.BackgroundColor3=Color3.fromRGB(70,130,180) bSave.Text="Salvar Edição" bSave.TextColor3=Color3.fromRGB(255,255,255) bSave.Font=Enum.Font.GothamBold
-                    bSave.MouseButton1Click:Connect(function()
-                        ModalContainer.Visible=false local newTxt = input.Text
-                        msg.text = newTxt msg.isEdited = true
-                        local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.text=newTxt m.isEdited=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
-                        pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/edit_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id, newText=newTxt}) }) end)
-                    end)
-                end
-            end,
-            function() -- Apagar
-                msg.isDeleted = true
-                local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.isDeleted=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
-                pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/delete_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id}) }) end)
-            end)
+        local holdBtn = Instance.new("TextButton", msgFrame) holdBtn.Size = UDim2.new(1,0,1,0) holdBtn.BackgroundTransparency=1 holdBtn.Text="" holdBtn.ZIndex=5
+        local isPressing = false
+        local holdTick = 0
+
+        holdBtn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isPressing = true
+                holdTick = tick()
+                task.delay(0.5, function()
+                    if isPressing and tick() - holdTick >= 0.45 then
+                        isPressing = false -- consome o clique
+                        activeMsgForAction = msg
+                        MessageActionPopup.Position = UDim2.new(0.5, -70, 0.5, -35)
+                        EditMsgBtn.Visible = (msg.type == "text")
+                        SelectionOverlay.Visible = true
+                    end
+                end)
+            end
+        end)
+        holdBtn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isPressing = false
+            end
         end)
     end
 end
@@ -615,7 +733,7 @@ end
 function SendPrivateMessage(msgType, content)
     local text = content or ChatBox.Text
     if text == "" or ActiveChatTarget == "" then return end
-    ChatBox.Text = ""
+    if msgType == "text" then ChatBox.Text = "" end
     local msgData = { id = GenerateMsgId(), sender = player.Name, displayName = player.DisplayName, userId = player.UserId, type = msgType or "text", text = text, timestamp = os.time(), isEdited = false, isDeleted = false }
     
     local history = LoadChat(ActiveChatTarget) table.insert(history, msgData) SaveChat(ActiveChatTarget, history)
@@ -632,10 +750,11 @@ ChatBox.FocusLost:Connect(function(ep) if ep then SendPrivateMessage("text") end
 -- ==========================================
 -- LOOPS DE SINCRONIZAÇÃO EM TEMPO REAL
 -- ==========================================
--- Loop de Mensagens Privadas (apenas para o chat aberto)
+-- Loop de Mensagens Privadas e Status no Cabeçalho (apenas para o chat aberto)
 task.spawn(function()
     while task.wait(2) do
         if ActiveChatTarget ~= "" then
+            -- Busca Mensagens (Intermediário temporário Render)
             pcall(function()
                 local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_messages?from=" .. ActiveChatTarget .. "&to=" .. player.Name, Method = "GET"})
                 if r.Success then
@@ -647,6 +766,18 @@ task.spawn(function()
                         for _,delId in ipairs(data.deletes) do for _,m in ipairs(h) do if m.id == delId then m.isDeleted=true break end end end
                         SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
                     end
+                end
+            end)
+            
+            -- Atualiza Status no Header dinamicamente
+            pcall(function()
+                local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_status?username=" .. ActiveChatTarget .. "&viewer=" .. player.Name, Method = "GET"})
+                if r.Success then
+                    local status = HttpService:JSONDecode(r.Body).status
+                    ChatStatus.Text = status
+                    if status == "Online" then ChatStatus.TextColor3 = Color3.fromRGB(46, 204, 113)
+                    elseif status == "Digitando..." then ChatStatus.TextColor3 = Color3.fromRGB(241, 196, 15)
+                    else ChatStatus.TextColor3 = Color3.fromRGB(150, 150, 150) end
                 end
             end)
         end
@@ -667,14 +798,13 @@ task.spawn(function()
                     elseif ev.type == "unfriend" then
                         local idx = table.find(LocalData.Friends, ev.username) if idx then table.remove(LocalData.Friends, idx) SaveFriends() if CurrentMenu == FriendsMenu then LoadFriendsUI() end end
                     elseif ev.type == "sync_request" then
-                        -- Outro usuário pediu seu histórico local
                         local h = LoadChat(ev.username)
                         HttpService:RequestAsync({Url = SERVER_URL .. "/provide_sync", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({from = player.Name, to = ev.username, history = h})})
                     end
                 end
             end
         end)
-        -- Verifica se alguém respondeu nosso request_sync
+        -- Verifica respostas de sync
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_sync?username=" .. player.Name, Method = "GET"})
             if r.Success then
