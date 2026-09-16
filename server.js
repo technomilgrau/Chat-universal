@@ -6,16 +6,16 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // ==========================================
-// BANCO DE DADOS EM MEMÓRIA
+// BANCO DE DADOS EM MEMÓRIA (Intermediário)
 // ==========================================
-const users = {}; // { username: { displayName, userId, status, bio, friends: [] } }
+const users = {}; // { username: { displayName, userId, status, bio, friends: [], lastSeen: Number, typingTo: {target, time} } }
 const friendRequests = {}; // { to: [{from, fromDisplay, fromId}] }
 const pendingMessages = {}; // { to: { from: { msgs: [], edits: [], deletes: [] } } }
 const globalEvents = {}; // { username: [ event1, event2 ] }
 const pendingSyncs = {}; // { to: { from: historyArray } }
 
 // ==========================================
-// ROTAS DE USUÁRIO, PESQUISA E PERFIL
+// ROTAS DE USUÁRIO E PESQUISA
 // ==========================================
 app.post('/register', (req, res) => {
     const { username, displayName, userId } = req.body;
@@ -28,12 +28,14 @@ app.post('/register', (req, res) => {
             userId: userId || 1,
             status: "Online",
             bio: "",
-            friends: []
+            friends: [],
+            lastSeen: Date.now(),
+            typingTo: null
         };
     } else {
         users[username].displayName = displayName || users[username].displayName;
         users[username].userId = userId || users[username].userId;
-        users[username].status = "Online";
+        users[username].lastSeen = Date.now();
     }
     if (!globalEvents[username]) globalEvents[username] = [];
     res.json({ success: true });
@@ -75,25 +77,54 @@ app.get('/get_profile', (req, res) => {
 app.post('/update_bio', (req, res) => {
     const { username, bio } = req.body;
     if (users[username]) {
-        users[username].bio = bio.substring(0, 80); // limite back-end
+        users[username].bio = bio.substring(0, 80); 
     }
     res.json({ success: true });
 });
 
 // ==========================================
-// ROTAS DE STATUS E AMIZADES
+// PRESENÇA: HEARTBEAT E STATUS (DIGITANDO/ONLINE/OFFLINE)
 // ==========================================
-app.post('/set_status', (req, res) => {
-    const { username, status } = req.body;
-    if (users[username]) users[username].status = status;
+app.post('/heartbeat', (req, res) => {
+    const { username } = req.body;
+    if (users[username]) {
+        users[username].lastSeen = Date.now();
+    }
+    res.json({ success: true });
+});
+
+app.post('/set_typing', (req, res) => {
+    const { from, to } = req.body;
+    if (users[from]) {
+        users[from].typingTo = { target: to, time: Date.now() };
+    }
     res.json({ success: true });
 });
 
 app.get('/get_status', (req, res) => {
-    const username = req.query.username;
-    res.json({ status: users[username] ? users[username].status : "Offline" });
+    const { username, viewer } = req.query;
+    const user = users[username];
+    
+    if (!user) return res.json({ status: "Offline" });
+    
+    const now = Date.now();
+    
+    // Timeout de 15 segundos para cair offline se não houver heartbeat
+    if (now - user.lastSeen > 15000) {
+        return res.json({ status: "Offline" });
+    }
+    
+    // Timeout de 3 segundos para status digitando dinâmico
+    if (viewer && user.typingTo && user.typingTo.target === viewer && (now - user.typingTo.time < 3000)) {
+        return res.json({ status: "Digitando..." });
+    }
+    
+    return res.json({ status: "Online" });
 });
 
+// ==========================================
+// ROTAS DE AMIZADES
+// ==========================================
 app.post('/send_request', (req, res) => {
     const { from, fromDisplay, fromId, to } = req.body;
     if (!friendRequests[to]) friendRequests[to] = [];
@@ -112,16 +143,10 @@ app.get('/get_requests', (req, res) => {
 
 app.post('/accept_request', (req, res) => {
     const { user, friend } = req.body;
-    
-    if (friendRequests[user]) {
-        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
-    }
-    
-    // Adiciona para os dois lados
+    if (friendRequests[user]) friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
     if (users[user] && !users[user].friends.includes(friend)) users[user].friends.push(friend);
     if (users[friend] && !users[friend].friends.includes(user)) users[friend].friends.push(user);
 
-    // Envia evento global para o amigo saber que foi aceito
     if (!globalEvents[friend]) globalEvents[friend] = [];
     globalEvents[friend].push({ type: 'friend_accept', username: user });
 
@@ -130,9 +155,7 @@ app.post('/accept_request', (req, res) => {
 
 app.post('/decline_request', (req, res) => {
     const { user, friend } = req.body;
-    if (friendRequests[user]) {
-        friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
-    }
+    if (friendRequests[user]) friendRequests[user] = friendRequests[user].filter(r => r.from !== friend);
     res.json({ success: true });
 });
 
@@ -148,7 +171,7 @@ app.post('/unfriend', (req, res) => {
 });
 
 // ==========================================
-// ROTAS DE CHAT E MENSAGENS (TEXTO, EDIT, DEL)
+// ROTAS DE CHAT E MENSAGENS (TEXTO/STICKERS, EDIT, DEL)
 // ==========================================
 app.post('/send_message', (req, res) => {
     const { from, to, msg } = req.body;
@@ -181,7 +204,7 @@ app.get('/get_messages', (req, res) => {
     const { from, to } = req.query;
     if (pendingMessages[to] && pendingMessages[to][from]) {
         const data = pendingMessages[to][from];
-        pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] };
+        pendingMessages[to][from] = { msgs: [], edits: [], deletes: [] }; // limpa fila temporária após entregar
         return res.json(data);
     }
     res.json({ msgs: [], edits: [], deletes: [] });
