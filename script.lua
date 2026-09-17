@@ -1,5 +1,5 @@
 -- ==========================================
--- CHAT-UNIVERSAL V6 (Presença, Seleção e Header Dinâmico)
+-- CHAT-UNIVERSAL V6 (Fila Offline, Edição, Stickers Fix e Bio Fix)
 -- Autor: techno_milgrau
 -- ==========================================
 
@@ -88,7 +88,7 @@ task.spawn(function()
     if success and res.Success then
         local files = HttpService:JSONDecode(res.Body)
         for _, file in ipairs(files) do
-            if file.type == "file" and (string.match(file.name:lower(), "%.png$") or string.match(file.name:lower(), "%.jpg$")) then
+            if file.type == "file" and (string.match(file.name:lower(), "%.png$") or string.match(file.name:lower(), "%.jpg$") or string.match(file.name:lower(), "%.jpeg$")) then
                 if not isfile(StickersFolder .. "/" .. file.name) then
                     local imgRes = HttpService:RequestAsync({Url = file.download_url, Method = "GET"})
                     if imgRes.Success then writefile(StickersFolder .. "/" .. file.name, imgRes.Body) end
@@ -104,7 +104,7 @@ local function GetAvailableStickers()
         pcall(function()
             local files = listfiles(StickersFolder)
             for _, path in ipairs(files) do
-                if string.match(path:lower(), "%.png$") or string.match(path:lower(), "%.jpg$") then table.insert(stickers, path) end
+                if string.match(path:lower(), "%.png$") or string.match(path:lower(), "%.jpg$") or string.match(path:lower(), "%.jpeg$") then table.insert(stickers, path) end
             end
         end)
     end
@@ -327,9 +327,14 @@ local ProfStats = Instance.new("TextLabel", ProfileMenu) ProfStats.Size = UDim2.
 local ProfBtn = Instance.new("TextButton", ProfileMenu) ProfBtn.Size = UDim2.new(0, 140, 0, 35) ProfBtn.Position = UDim2.new(0.5, -70, 0, 220) ProfBtn.Font = Enum.Font.GothamBold ProfBtn.TextSize = 14 ProfBtn.TextColor3 = Color3.fromRGB(255,255,255) Instance.new("UICorner", ProfBtn).CornerRadius = UDim.new(0,8)
 local ProfBio = Instance.new("TextButton", ProfileMenu) ProfBio.Size = UDim2.new(1, -40, 0, 60) ProfBio.Position = UDim2.new(0, 20, 0, 270) ProfBio.BackgroundTransparency=1 ProfBio.TextColor3=Color3.fromRGB(220,220,220) ProfBio.Font=Enum.Font.Gotham ProfBio.TextSize=12 ProfBio.TextWrapped=true ProfBio.TextYAlignment=Enum.TextYAlignment.Top
 
+local ViewingProfileUsername = ""
+local ProfBioConnection = nil
+
 function OpenProfileUI(targetUsername)
     OpenMenu(ProfileMenu)
+    ViewingProfileUsername = targetUsername
     ProfDName.Text = "Carregando..." ProfUName.Text = "" ProfStats.Text = "amigos 0" ProfBio.Text = "" ProfBtn.Visible = false
+    
     task.spawn(function()
         local s, r = pcall(function() return HttpService:RequestAsync({Url=SERVER_URL.."/get_profile?username="..targetUsername, Method="GET"}) end)
         if s and r.Success then
@@ -337,16 +342,12 @@ function OpenProfileUI(targetUsername)
             if not data then return end
             pcall(function() ProfAvatar.Image = "rbxthumb://type=AvatarHeadShot&id="..(data.userId or 1).."&w=150&h=150" end)
             
-            if targetUsername == player.Name then
-                ProfDName.Text = data.displayName .. " (Você)"
-            else
-                ProfDName.Text = data.displayName
-            end
+            local isMe = (targetUsername == player.Name)
+            if isMe then ProfDName.Text = data.displayName .. " (Você)" else ProfDName.Text = data.displayName end
             
             ProfUName.Text = "@" .. data.username
             ProfStats.Text = "amigos " .. tostring(data.friendCount or 0)
             
-            local isMe = (targetUsername == player.Name)
             local isFriend = table.find(LocalData.Friends, targetUsername) ~= nil
             
             if isMe then
@@ -372,9 +373,10 @@ function OpenProfileUI(targetUsername)
                 end
             end
             
-            -- Evento seguro para bio
-            ProfBio.MouseButton1Click:Connect(function()
-                if isMe then
+            -- Garantir que a conexão da Bio seja refeita e segura
+            if ProfBioConnection then ProfBioConnection:Disconnect() end
+            ProfBioConnection = ProfBio.MouseButton1Click:Connect(function()
+                if ViewingProfileUsername == player.Name then
                     if data.bio == "" then OpenBioEditor("") else ShowPopup("Editar biografia?", "", "Sim", "Não", function() OpenBioEditor(data.bio) end) end
                 end
             end)
@@ -390,7 +392,7 @@ local function CreateUserEntry(parent, displayName, username, userId, mode, stat
     
     local avatarBtn = Instance.new("ImageButton", frame) avatarBtn.Size = UDim2.new(0, 45, 0, 45) avatarBtn.Position = UDim2.new(0, 8, 0, 7) avatarBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35) Instance.new("UICorner", avatarBtn).CornerRadius = UDim.new(0, 6)
     pcall(function() avatarBtn.Image = "rbxthumb://type=AvatarHeadShot&id="..userId.."&w=150&h=150" end)
-    avatarBtn.MouseButton1Click:Connect(function() OpenProfileUI(username) end) -- Somente a foto abre o perfil
+    avatarBtn.MouseButton1Click:Connect(function() OpenProfileUI(username) end) 
     
     local txtDName = displayName
     if username == player.Name then txtDName = displayName .. " (Você)" end
@@ -399,7 +401,7 @@ local function CreateUserEntry(parent, displayName, username, userId, mode, stat
     local uName = Instance.new("TextLabel", frame) uName.Size = UDim2.new(0, 90, 0, 16) uName.Position = UDim2.new(0, 60, 0, 32) uName.BackgroundTransparency = 1 uName.Text = "@" .. username uName.TextColor3 = Color3.fromRGB(180, 180, 180) uName.Font = Enum.Font.Gotham uName.TextSize = 10 uName.TextXAlignment = Enum.TextXAlignment.Left
     
     if mode == "Search" then
-        if username ~= player.Name then -- Não mostra botão de ação para si próprio
+        if username ~= player.Name then 
             local actionBtn = Instance.new("TextButton", frame) actionBtn.Size = UDim2.new(0, 75, 0, 26) actionBtn.Position = UDim2.new(1, -85, 0.5, -13) actionBtn.Font = Enum.Font.GothamBold actionBtn.TextSize = 11 Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 6)
             local isFriend = table.find(LocalData.Friends, username) ~= nil
             if isFriend then
@@ -428,7 +430,7 @@ local function CreateUserEntry(parent, displayName, username, userId, mode, stat
         if statusText == "Online" then statusLabel.TextColor3 = Color3.fromRGB(46, 204, 113) elseif statusText == "Digitando..." then statusLabel.TextColor3 = Color3.fromRGB(241, 196, 15) else statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150) end
         
         local hitBox = Instance.new("TextButton", frame) hitBox.Size = UDim2.new(1, -60, 1, 0) hitBox.Position = UDim2.new(0,60,0,0) hitBox.BackgroundTransparency = 1 hitBox.Text = ""
-        hitBox.MouseButton1Click:Connect(function() OpenPrivateChat(username, displayName, userId) end) -- Resto do frame abre chat
+        hitBox.MouseButton1Click:Connect(function() OpenPrivateChat(username, displayName, userId) end) 
     end
     return frame
 end
@@ -453,9 +455,7 @@ SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
             local s, r = pcall(function() return HttpService:RequestAsync({Url = SERVER_URL .. "/users?query=" .. HttpService:UrlEncode(query), Method = "GET"}) end)
             if s and r.Success then
                 local users = HttpService:JSONDecode(r.Body)
-                for _, u in ipairs(users) do
-                    CreateUserEntry(SearchResults, u.displayName, u.username, u.userId, "Search")
-                end
+                for _, u in ipairs(users) do CreateUserEntry(SearchResults, u.displayName, u.username, u.userId, "Search") end
             end
         end)
     end)
@@ -505,7 +505,6 @@ FriendsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 
 local ActiveChatTarget = "" local ActiveChatTargetDisplay = "" local ActiveChatTargetId = 1
 
--- Construção Customizada do Cabeçalho de Chat Privado
 local ChatBarObj = Instance.new("Frame", PrivateChatMenu) ChatBarObj.Size = UDim2.new(1, 0, 0, 45) ChatBarObj.BackgroundTransparency = 1
 local ChatBackBtn = Instance.new("TextButton", ChatBarObj) ChatBackBtn.Size = UDim2.new(0, 30, 0, 30) ChatBackBtn.Position = UDim2.new(0, 5, 0, 7) ChatBackBtn.BackgroundTransparency = 1 ChatBackBtn.Text = "◀" ChatBackBtn.TextColor3 = Color3.fromRGB(200, 200, 200) ChatBackBtn.Font = Enum.Font.GothamBold ChatBackBtn.TextSize = 18
 ChatBackBtn.MouseButton1Click:Connect(function() CloseMenu() ActiveChatTarget = "" end)
@@ -547,13 +546,13 @@ local ChatLayout = Instance.new("UIListLayout", ChatScroll) ChatLayout.Padding =
 ChatLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() ChatScroll.CanvasSize = UDim2.new(0, 0, 0, ChatLayout.AbsoluteContentSize.Y + 10) end)
 
 local ChatInputFrame = Instance.new("Frame", PrivateChatMenu) ChatInputFrame.Size = UDim2.new(1, -20, 0, 40) ChatInputFrame.Position = UDim2.new(0, 10, 1, -50) ChatInputFrame.BackgroundTransparency = 1
-local ChatBox = Instance.new("TextBox", ChatInputFrame) ChatBox.Size = UDim2.new(1, -100, 1, 0) ChatBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45) ChatBox.TextColor3 = Color3.fromRGB(255, 255, 255) ChatBox.Font = Enum.Font.Gotham ChatBox.TextSize = 13 ChatBox.PlaceholderText = "Mensagem..." ChatBox.Text = "" ChatBox.TextXAlignment = Enum.TextXAlignment.Left Instance.new("UICorner", ChatBox).CornerRadius = UDim.new(0, 6) local UIPaddingBox = Instance.new("UIPadding", ChatBox) UIPaddingBox.PaddingLeft = UDim.new(0, 10) UIPaddingBox.PaddingRight = UDim.new(0, 10)
+local ChatBox = Instance.new("TextBox", ChatInputFrame) ChatBox.Size = UDim2.new(1, -100, 1, 0) ChatBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45) ChatBox.TextColor3 = Color3.fromRGB(255, 255, 255) ChatBox.Font = Enum.Font.Gotham ChatBox.TextSize = 13 ChatBox.PlaceholderText = "Mensagem..." ChatBox.Text = "" ChatBox.TextXAlignment = Enum.TextXAlignment.Left ChatBox.ClearTextOnFocus = false Instance.new("UICorner", ChatBox).CornerRadius = UDim.new(0, 6) local UIPaddingBox = Instance.new("UIPadding", ChatBox) UIPaddingBox.PaddingLeft = UDim.new(0, 10) UIPaddingBox.PaddingRight = UDim.new(0, 10)
 local StickerBtn = Instance.new("TextButton", ChatInputFrame) StickerBtn.Size = UDim2.new(0, 30, 1, 0) StickerBtn.Position = UDim2.new(1, -95, 0, 0) StickerBtn.BackgroundTransparency=1 StickerBtn.Text = "🙂" StickerBtn.TextSize = 18
 local SendBtn = Instance.new("TextButton", ChatInputFrame) SendBtn.Size = UDim2.new(0, 60, 1, 0) SendBtn.Position = UDim2.new(1, -60, 0, 0) SendBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180) SendBtn.Text = "Enviar" SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255) SendBtn.Font = Enum.Font.GothamBold SendBtn.TextSize = 12 Instance.new("UICorner", SendBtn).CornerRadius = UDim.new(0, 6)
 
--- Painel de Figurinhas
-local StickerPanel = Instance.new("ScrollingFrame", PrivateChatMenu) StickerPanel.Size = UDim2.new(1,0,0,200) StickerPanel.Position = UDim2.new(0,0,1,-250) StickerPanel.BackgroundColor3 = Color3.fromRGB(30,30,35) StickerPanel.Visible = false StickerPanel.ZIndex = 20
-local StickerGrid = Instance.new("UIGridLayout", StickerPanel) StickerGrid.CellSize = UDim2.new(0,60,0,60) StickerGrid.CellPadding = UDim2.new(0,10,0,10) StickerGrid.SortOrder = Enum.SortOrder.LayoutOrder
+-- Painel de Figurinhas (Grid horizontal do TikTok)
+local StickerPanel = Instance.new("ScrollingFrame", PrivateChatMenu) StickerPanel.Size = UDim2.new(1,0,0,240) StickerPanel.Position = UDim2.new(0,0,1,-290) StickerPanel.BackgroundColor3 = Color3.fromRGB(30,30,35) StickerPanel.Visible = false StickerPanel.ZIndex = 20 StickerPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y StickerPanel.ScrollingDirection = Enum.ScrollingDirection.Y StickerPanel.ScrollBarThickness = 4
+local StickerGrid = Instance.new("UIGridLayout", StickerPanel) StickerGrid.CellSize = UDim2.new(0,70,0,70) StickerGrid.CellPadding = UDim2.new(0,12,0,12) StickerGrid.SortOrder = Enum.SortOrder.LayoutOrder StickerGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 StickerBtn.MouseButton1Click:Connect(function()
     StickerPanel.Visible = not StickerPanel.Visible
@@ -561,20 +560,18 @@ StickerBtn.MouseButton1Click:Connect(function()
         for _,c in pairs(StickerPanel:GetChildren()) do if c:IsA("ImageButton") then c:Destroy() end end
         local stickers = GetAvailableStickers()
         
-        -- Carrega recentes
         for i = #LocalData.RecentStickers, 1, -1 do
             local path = LocalData.RecentStickers[i]
             pcall(function()
-                local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = -i
+                local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = -i b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit
                 if getcustomasset then b.Image = getcustomasset(path) end
                 b.MouseButton1Click:Connect(function() SendPrivateMessage("sticker", string.match(path, "([^/\\]+)$")) StickerPanel.Visible = false end)
             end)
         end
-        -- Carrega todos
         for i, path in ipairs(stickers) do
             if not table.find(LocalData.RecentStickers, path) then
                 pcall(function()
-                    local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = i
+                    local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = i b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit
                     if getcustomasset then b.Image = getcustomasset(path) end
                     b.MouseButton1Click:Connect(function()
                         table.insert(LocalData.RecentStickers, 1, path)
@@ -589,7 +586,7 @@ StickerBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Sistema de Digitando... (Dispara timeout no node)
+-- Sistema de Digitando... 
 local typeDebounce = false
 ChatBox:GetPropertyChangedSignal("Text"):Connect(function()
     if ChatBox.Text ~= "" and ActiveChatTarget ~= "" then
@@ -606,16 +603,21 @@ end)
 -- ==========================================
 -- MENU DE OPÇÕES (PRESSIONAR E SEGURAR MENSAGEM)
 -- ==========================================
-local SelectionOverlay = Instance.new("TextButton", PrivateChatMenu)
+local SelectionOverlay = Instance.new("Frame", PrivateChatMenu)
 SelectionOverlay.Size = UDim2.new(1, 0, 1, 0)
 SelectionOverlay.BackgroundTransparency = 1
-SelectionOverlay.Text = ""
 SelectionOverlay.ZIndex = 40
 SelectionOverlay.Visible = false
+
+local SelectionBgBtn = Instance.new("TextButton", SelectionOverlay)
+SelectionBgBtn.Size = UDim2.new(1, 0, 1, 0)
+SelectionBgBtn.BackgroundTransparency = 1
+SelectionBgBtn.Text = ""
 
 local MessageActionPopup = Instance.new("Frame", SelectionOverlay)
 MessageActionPopup.Size = UDim2.new(0, 140, 0, 70)
 MessageActionPopup.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+MessageActionPopup.Active = true -- Bloqueia cliques no fundo
 Instance.new("UICorner", MessageActionPopup).CornerRadius = UDim.new(0, 8)
 
 local EditMsgBtn = Instance.new("TextButton", MessageActionPopup)
@@ -635,7 +637,7 @@ DelMsgBtn.Font = Enum.Font.GothamBold
 
 local activeMsgForAction = nil
 
-SelectionOverlay.MouseButton1Click:Connect(function()
+SelectionBgBtn.MouseButton1Click:Connect(function()
     SelectionOverlay.Visible = false
     activeMsgForAction = nil
 end)
@@ -683,7 +685,7 @@ function RenderMessageItem(msg)
     if msg.isDeleted then
         local body = Instance.new("TextLabel", msgFrame) body.Size = UDim2.new(1, -42, 0, 20) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(150,150,150) body.Text = "🚫 Mensagem apagada"
     elseif msg.type == "sticker" then
-        local img = Instance.new("ImageLabel", msgFrame) img.Size = UDim2.new(0, 100, 0, 100) img.Position = UDim2.new(0, 40, 0, 18) img.BackgroundTransparency = 1
+        local img = Instance.new("ImageLabel", msgFrame) img.Size = UDim2.new(0, 100, 0, 100) img.Position = UDim2.new(0, 40, 0, 18) img.BackgroundTransparency = 1 img.ScaleType = Enum.ScaleType.Fit
         pcall(function() if getcustomasset then img.Image = getcustomasset(StickersFolder .. "/" .. msg.text) end end)
         contentHeight = 100
     else
@@ -695,7 +697,6 @@ function RenderMessageItem(msg)
     end
     msgFrame.Size = UDim2.new(1, 0, 0, contentHeight + 22)
     
-    -- Editar/Apagar interatividade - SOMENTE PRESSIONANDO E SEGURANDO (Hold)
     if msg.sender == player.Name and not msg.isDeleted then
         local holdBtn = Instance.new("TextButton", msgFrame) holdBtn.Size = UDim2.new(1,0,1,0) holdBtn.BackgroundTransparency=1 holdBtn.Text="" holdBtn.ZIndex=5
         local isPressing = false
@@ -703,11 +704,10 @@ function RenderMessageItem(msg)
 
         holdBtn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isPressing = true
-                holdTick = tick()
+                isPressing = true holdTick = tick()
                 task.delay(0.5, function()
                     if isPressing and tick() - holdTick >= 0.45 then
-                        isPressing = false -- consome o clique
+                        isPressing = false
                         activeMsgForAction = msg
                         MessageActionPopup.Position = UDim2.new(0.5, -70, 0.5, -35)
                         EditMsgBtn.Visible = (msg.type == "text")
@@ -717,9 +717,7 @@ function RenderMessageItem(msg)
             end
         end)
         holdBtn.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isPressing = false
-            end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isPressing = false end
         end)
     end
 end
@@ -750,26 +748,11 @@ ChatBox.FocusLost:Connect(function(ep) if ep then SendPrivateMessage("text") end
 -- ==========================================
 -- LOOPS DE SINCRONIZAÇÃO EM TEMPO REAL
 -- ==========================================
--- Loop de Mensagens Privadas e Status no Cabeçalho (apenas para o chat aberto)
+
+-- Loop Local (Digitação e Presença)
 task.spawn(function()
     while task.wait(2) do
         if ActiveChatTarget ~= "" then
-            -- Busca Mensagens (Intermediário temporário Render)
-            pcall(function()
-                local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_messages?from=" .. ActiveChatTarget .. "&to=" .. player.Name, Method = "GET"})
-                if r.Success then
-                    local data = HttpService:JSONDecode(r.Body)
-                    if (data.msgs and #data.msgs > 0) or (data.edits and #data.edits > 0) or (data.deletes and #data.deletes > 0) then
-                        local h = LoadChat(ActiveChatTarget)
-                        for _,m in ipairs(data.msgs) do table.insert(h, m) end
-                        for _,ed in ipairs(data.edits) do for _,m in ipairs(h) do if m.id == ed.msgId then m.text=ed.newText m.isEdited=true break end end end
-                        for _,delId in ipairs(data.deletes) do for _,m in ipairs(h) do if m.id == delId then m.isDeleted=true break end end end
-                        SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
-                    end
-                end
-            end)
-            
-            -- Atualiza Status no Header dinamicamente
             pcall(function()
                 local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_status?username=" .. ActiveChatTarget .. "&viewer=" .. player.Name, Method = "GET"})
                 if r.Success then
@@ -784,10 +767,63 @@ task.spawn(function()
     end
 end)
 
--- Loop Global (Amizades e Pedidos de Sincronização)
+-- Loop Global (Fila Offline Perfeita + Amizades)
 task.spawn(function()
     while task.wait(3.5) do
-        -- Busca eventos globais
+        -- Busca TODOS OS PENDENTES para sua conta (Fila Temporária -> Histórico Local)
+        pcall(function()
+            local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_all_pending?to=" .. player.Name, Method = "GET"})
+            if r.Success then
+                local data = HttpService:JSONDecode(r.Body)
+                local hasUpdates = false
+                local sMsgs, sEdits, sDels = {}, {}, {}
+
+                if data.msgs and #data.msgs > 0 then
+                    local msgsBySender = {}
+                    for _, m in ipairs(data.msgs) do msgsBySender[m.sender] = msgsBySender[m.sender] or {} table.insert(msgsBySender[m.sender], m) table.insert(sMsgs, m.id) hasUpdates = true end
+                    for sender, msgs in pairs(msgsBySender) do
+                        local h = LoadChat(sender) local map = {} for _, xm in ipairs(h) do map[xm.id] = true end
+                        local modified = false
+                        for _, m in ipairs(msgs) do if not map[m.id] then table.insert(h, m); modified = true end end
+                        if modified then SaveChat(sender, h) if ActiveChatTarget == sender then RefreshChatUI(h) end end
+                    end
+                end
+
+                if data.edits and #data.edits > 0 then
+                    local editsBySender = {}
+                    for _, e in ipairs(data.edits) do editsBySender[e.sender] = editsBySender[e.sender] or {} table.insert(editsBySender[e.sender], e) table.insert(sEdits, e.msgId) hasUpdates = true end
+                    for sender, edits in pairs(editsBySender) do
+                        local h = LoadChat(sender) local modified = false
+                        for _, e in ipairs(edits) do
+                            for _, m in ipairs(h) do if m.id == e.msgId and not m.isEdited then m.text = e.newText; m.isEdited = true; modified = true; break end end
+                        end
+                        if modified then SaveChat(sender, h) if ActiveChatTarget == sender then RefreshChatUI(h) end end
+                    end
+                end
+
+                if data.deletes and #data.deletes > 0 then
+                    local delsBySender = {}
+                    for _, d in ipairs(data.deletes) do delsBySender[d.sender] = delsBySender[d.sender] or {} table.insert(delsBySender[d.sender], d) table.insert(sDels, d.msgId) hasUpdates = true end
+                    for sender, dels in pairs(delsBySender) do
+                        local h = LoadChat(sender) local modified = false
+                        for _, d in ipairs(dels) do
+                            for _, m in ipairs(h) do if m.id == d.msgId and not m.isDeleted then m.isDeleted = true; modified = true; break end end
+                        end
+                        if modified then SaveChat(sender, h) if ActiveChatTarget == sender then RefreshChatUI(h) end end
+                    end
+                end
+
+                -- Confirma (ACK) para o Render Apagar os eventos transportados
+                if hasUpdates then
+                    HttpService:RequestAsync({
+                        Url = SERVER_URL .. "/ack_all_pending", Method = "POST", Headers = {["Content-Type"]="application/json"},
+                        Body = HttpService:JSONEncode({ to = player.Name, msgIds = sMsgs, editIds = sEdits, deleteIds = sDels })
+                    })
+                end
+            end
+        end)
+
+        -- Eventos Globais de Amigos e Sync Manual
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_global_events?username=" .. player.Name, Method = "GET"})
             if r.Success then
@@ -804,7 +840,8 @@ task.spawn(function()
                 end
             end
         end)
-        -- Verifica respostas de sync
+        
+        -- Recebimento de Sync Manual
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_sync?username=" .. player.Name, Method = "GET"})
             if r.Success then
