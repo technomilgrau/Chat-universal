@@ -36,8 +36,11 @@ end
 local function LoadFriends()
     pcall(function()
         if isfile and isfile(FriendsFile) then
-            local decoded = HttpService:JSONEncode(readfile(FriendsFile))
-            if decoded then LocalData.Friends = decoded end
+            -- CORREÇÃO: Mudei JSONEncode para JSONDecode
+            local decoded = HttpService:JSONDecode(readfile(FriendsFile))
+            if decoded and type(decoded) == "table" then 
+                LocalData.Friends = decoded 
+            end
         end
     end)
 end
@@ -213,6 +216,11 @@ local NotifyBtn = Instance.new("TextButton", TitleBar)
 NotifyBtn.Size = UDim2.new(0, 30, 0, 30) NotifyBtn.Position = UDim2.new(1, -65, 0, 5) NotifyBtn.BackgroundTransparency = 1
 NotifyBtn.Text = "🔔" NotifyBtn.TextColor3 = Color3.fromRGB(200, 200, 200) NotifyBtn.Font = Enum.Font.GothamBold NotifyBtn.TextSize = 16
 
+local GearBtn = Instance.new("TextButton", TitleBar)
+GearBtn.Size = UDim2.new(0, 30, 0, 30) GearBtn.Position = UDim2.new(1, -95, 0, 5) GearBtn.BackgroundTransparency = 1
+GearBtn.Text = "⚙️" GearBtn.TextColor3 = Color3.fromRGB(200, 200, 200) GearBtn.Font = Enum.Font.GothamBold GearBtn.TextSize = 16
+GearBtn.MouseButton1Click:Connect(function() OpenMenu(CustomizationMenu) end)
+
 local MinimizeBtn = Instance.new("TextButton", TitleBar)
 MinimizeBtn.Size = UDim2.new(0, 30, 0, 30) MinimizeBtn.Position = UDim2.new(1, -35, 0, 5) MinimizeBtn.BackgroundTransparency = 1
 MinimizeBtn.Text = "−" MinimizeBtn.TextColor3 = Color3.fromRGB(200, 200, 200) MinimizeBtn.Font = Enum.Font.GothamBold MinimizeBtn.TextSize = 20
@@ -255,6 +263,250 @@ local ProfileMenu = Instance.new("Frame", SettingsPanel) ProfileMenu.Size = UDim
 
 local MenuStack = {MainMenu}
 local CurrentMenu = MainMenu
+
+-- ==========================================
+-- MENU DE PERSONALIZAÇÃO E ESCALA (UIScale)
+-- ==========================================
+local CustomizationMenu = Instance.new("Frame", SettingsPanel) 
+CustomizationMenu.Size = UDim2.new(1, 0, 1, 0) 
+CustomizationMenu.Position = UDim2.new(1, 0, 0, 0) 
+CustomizationMenu.BackgroundTransparency = 1
+
+createTopBar(CustomizationMenu, "Configurações")
+
+local uiScale = MainFrameWrapper:FindFirstChildOfClass("UIScale") or Instance.new("UIScale", MainFrameWrapper)
+uiScale.Scale = 1.0
+
+local currentScale = 1.0
+local minScale = 0.3
+local maxScale = 2.5
+local isCustomizingEnabled = false
+
+-- Card Principal "Personalizar"
+local CustomRow = Instance.new("Frame", CustomizationMenu)
+CustomRow.Size = UDim2.new(1, -20, 0, 50)
+CustomRow.Position = UDim2.new(0, 10, 0, 50)
+CustomRow.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+Instance.new("UICorner", CustomRow).CornerRadius = UDim.new(0, 8)
+
+local CustomLabel = Instance.new("TextLabel", CustomRow)
+CustomLabel.Size = UDim2.new(1, -70, 1, 0)
+CustomLabel.Position = UDim2.new(0, 12, 0, 0)
+CustomLabel.BackgroundTransparency = 1
+CustomLabel.Text = "Personalizar"
+CustomLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+CustomLabel.Font = Enum.Font.GothamBold
+CustomLabel.TextSize = 14
+CustomLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Botão Toggle Estilo Bluetooth
+local SwitchTrack = Instance.new("Frame", CustomRow)
+SwitchTrack.Size = UDim2.new(0, 48, 0, 26)
+SwitchTrack.Position = UDim2.new(1, -58, 0.5, -13)
+SwitchTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+Instance.new("UICorner", SwitchTrack).CornerRadius = UDim.new(1, 0)
+
+local SwitchKnob = Instance.new("Frame", SwitchTrack)
+SwitchKnob.Size = UDim2.new(0, 20, 0, 20)
+SwitchKnob.Position = UDim2.new(0, 3, 0.5, -10)
+SwitchKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", SwitchKnob).CornerRadius = UDim.new(1, 0)
+
+local SwitchBtn = Instance.new("TextButton", SwitchTrack)
+SwitchBtn.Size = UDim2.new(1, 0, 1, 0)
+SwitchBtn.BackgroundTransparency = 1
+SwitchBtn.Text = ""
+
+-- Painel Expansível Animado (Barrinha de Tamanho)
+local ScalePanel = Instance.new("Frame", CustomizationMenu)
+ScalePanel.Size = UDim2.new(1, -20, 0, 0)
+ScalePanel.Position = UDim2.new(0, 10, 0, 108)
+ScalePanel.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ScalePanel.ClipsDescendants = true
+ScalePanel.Visible = false
+Instance.new("UICorner", ScalePanel).CornerRadius = UDim.new(0, 8)
+
+local ScaleTitle = Instance.new("TextLabel", ScalePanel)
+ScaleTitle.Size = UDim2.new(1, -20, 0, 22)
+ScaleTitle.Position = UDim2.new(0, 10, 0, 8)
+ScaleTitle.BackgroundTransparency = 1
+ScaleTitle.Text = "Tamanho: 1.0x"
+ScaleTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+ScaleTitle.Font = Enum.Font.GothamBold
+ScaleTitle.TextSize = 12
+ScaleTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local ControlsContainer = Instance.new("Frame", ScalePanel)
+ControlsContainer.Size = UDim2.new(1, -20, 0, 30)
+ControlsContainer.Position = UDim2.new(0, 10, 0, 34)
+ControlsContainer.BackgroundTransparency = 1
+
+-- Botão (-)
+local MinusBtn = Instance.new("TextButton", ControlsContainer)
+MinusBtn.Size = UDim2.new(0, 28, 0, 28)
+MinusBtn.Position = UDim2.new(0, 0, 0.5, -14)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+MinusBtn.Text = "-"
+MinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinusBtn.Font = Enum.Font.GothamBold
+MinusBtn.TextSize = 16
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 6)
+
+-- Barra do Slider
+local SliderTrack = Instance.new("Frame", ControlsContainer)
+SliderTrack.Size = UDim2.new(1, -145, 0, 8)
+SliderTrack.Position = UDim2.new(0, 34, 0.5, -4)
+SliderTrack.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+Instance.new("UICorner", SliderTrack).CornerRadius = UDim.new(1, 0)
+
+local SliderFill = Instance.new("Frame", SliderTrack)
+SliderFill.Size = UDim2.new(0.318, 0, 1, 0)
+SliderFill.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(1, 0)
+
+local SliderKnob = Instance.new("Frame", SliderTrack)
+SliderKnob.Size = UDim2.new(0, 16, 0, 16)
+SliderKnob.Position = UDim2.new(0.318, -8, 0.5, -8)
+SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", SliderKnob).CornerRadius = UDim.new(1, 0)
+
+-- Botão (+)
+local PlusBtn = Instance.new("TextButton", ControlsContainer)
+PlusBtn.Size = UDim2.new(0, 28, 0, 28)
+PlusBtn.Position = UDim2.new(1, -105, 0.5, -14)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+PlusBtn.Text = "+"
+PlusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlusBtn.Font = Enum.Font.GothamBold
+PlusBtn.TextSize = 16
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 6)
+
+-- Botão Reset
+local ResetBtn = Instance.new("TextButton", ControlsContainer)
+ResetBtn.Size = UDim2.new(0, 70, 0, 28)
+ResetBtn.Position = UDim2.new(1, -70, 0.5, -14)
+ResetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+ResetBtn.Text = "Reset"
+ResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetBtn.Font = Enum.Font.GothamBold
+ResetBtn.TextSize = 11
+Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 6)
+
+-- Atualizador de Escala
+local function setScale(val)
+    val = math.clamp(math.round(val * 10) / 10, minScale, maxScale)
+    currentScale = val
+    if isCustomizingEnabled then
+        uiScale.Scale = currentScale
+    else
+        uiScale.Scale = 1.0
+    end
+    ScaleTitle.Text = string.format("Tamanho: %.1fx", currentScale)
+    
+    local pct = (currentScale - minScale) / (maxScale - minScale)
+    SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+    SliderKnob.Position = UDim2.new(pct, -8, 0.5, -8)
+end
+
+-- Animação do Toggle Bluetooth
+local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+SwitchBtn.MouseButton1Click:Connect(function()
+    isCustomizingEnabled = not isCustomizingEnabled
+    
+    if isCustomizingEnabled then
+        TweenService:Create(SwitchTrack, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 122, 255)}):Play()
+        TweenService:Create(SwitchKnob, tweenInfo, {Position = UDim2.new(1, -23, 0.5, -10)}):Play()
+        
+        uiScale.Scale = currentScale
+        ScalePanel.Visible = true
+        TweenService:Create(ScalePanel, tweenInfo, {Size = UDim2.new(1, -20, 0, 75)}):Play()
+    else
+        TweenService:Create(SwitchTrack, tweenInfo, {BackgroundColor3 = Color3.fromRGB(60, 60, 65)}):Play()
+        TweenService:Create(SwitchKnob, tweenInfo, {Position = UDim2.new(0, 3, 0.5, -10)}):Play()
+        
+        uiScale.Scale = 1.0
+        local tw = TweenService:Create(ScalePanel, tweenInfo, {Size = UDim2.new(1, -20, 0, 0)})
+        tw:Play()
+        tw.Completed:Connect(function()
+            if not isCustomizingEnabled then ScalePanel.Visible = false end
+        end)
+    end
+end)
+
+-- Clique/Segurar (-) e (+)
+local isHoldingMinus, isHoldingPlus = false, false
+
+MinusBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        setScale(currentScale - 0.1)
+        isHoldingMinus = true
+        task.delay(0.35, function()
+            while isHoldingMinus do
+                setScale(currentScale - 0.1)
+                task.wait(0.08)
+            end
+        end)
+    end
+end)
+MinusBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isHoldingMinus = false
+    end
+end)
+
+PlusBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        setScale(currentScale + 0.1)
+        isHoldingPlus = true
+        task.delay(0.35, function()
+            while isHoldingPlus do
+                setScale(currentScale + 0.1)
+                task.wait(0.08)
+            end
+        end)
+    end
+end)
+PlusBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isHoldingPlus = false
+    end
+end)
+
+ResetBtn.MouseButton1Click:Connect(function()
+    setScale(1.0)
+end)
+
+-- Arrastar na barra de slider
+local draggingSlider = false
+local function updateSliderInput(input)
+    local trackAbsPos = SliderTrack.AbsolutePosition.X
+    local trackAbsSize = SliderTrack.AbsoluteSize.X
+    if trackAbsSize > 0 then
+        local mouseX = input.Position.X
+        local pct = math.clamp((mouseX - trackAbsPos) / trackAbsSize, 0, 1)
+        setScale(minScale + pct * (maxScale - minScale))
+    end
+end
+
+SliderTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = true
+        updateSliderInput(input)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateSliderInput(input)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = false
+    end
+end)
 
 local function OpenMenu(newMenu)
     if CurrentMenu == newMenu then return end
@@ -569,7 +821,6 @@ local ChatInputFrame = Instance.new("Frame", PrivateChatMenu) ChatInputFrame.Siz
 local ChatBox = Instance.new("TextBox", ChatInputFrame) ChatBox.Size = UDim2.new(1, -100, 1, 0) ChatBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45) ChatBox.TextColor3 = Color3.fromRGB(255, 255, 255) ChatBox.Font = Enum.Font.Gotham ChatBox.TextSize = 13 ChatBox.PlaceholderText = "Mensagem..." ChatBox.Text = "" ChatBox.TextXAlignment = Enum.TextXAlignment.Left ChatBox.ClearTextOnFocus = false Instance.new("UICorner", ChatBox).CornerRadius = UDim.new(0, 6) local UIPaddingBox = Instance.new("UIPadding", ChatBox) UIPaddingBox.PaddingLeft = UDim.new(0, 10) UIPaddingBox.PaddingRight = UDim.new(0, 10)
 local StickerBtn = Instance.new("TextButton", ChatInputFrame) StickerBtn.Size = UDim2.new(0, 30, 1, 0) StickerBtn.Position = UDim2.new(1, -95, 0, 0) StickerBtn.BackgroundTransparency=1 StickerBtn.Text = "🙂" StickerBtn.TextSize = 18
 local SendBtn = Instance.new("TextButton", ChatInputFrame) SendBtn.Size = UDim2.new(0, 60, 1, 0) SendBtn.Position = UDim2.new(1, -60, 0, 0) SendBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180) SendBtn.Text = "Enviar" SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255) SendBtn.Font = Enum.Font.GothamBold SendBtn.TextSize = 12 Instance.new("UICorner", SendBtn).CornerRadius = UDim.new(0, 6)
-
 -- Painel de Figurinhas
 local StickerPanel = Instance.new("Frame", PrivateChatMenu)
 StickerPanel.Size = UDim2.new(1, -20, 0, 230)
@@ -577,7 +828,7 @@ StickerPanel.Position = UDim2.new(0, 10, 1, -280)
 StickerPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
 StickerPanel.BorderSizePixel = 0
 StickerPanel.Visible = false
-StickerPanel.ZIndex = 30
+StickerPanel.ZIndex = 50
 Instance.new("UICorner", StickerPanel).CornerRadius = UDim.new(0, 8)
 
 local StickerScroll = Instance.new("ScrollingFrame", StickerPanel)
@@ -587,6 +838,7 @@ StickerScroll.BackgroundTransparency = 1
 StickerScroll.ScrollBarThickness = 4
 StickerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 StickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+StickerScroll.ZIndex = 50
 
 local StickerScrollLayout = Instance.new("UIListLayout", StickerScroll)
 StickerScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -628,12 +880,14 @@ StickerBtn.MouseButton1Click:Connect(function()
             recTitle.TextSize = 11
             recTitle.TextXAlignment = Enum.TextXAlignment.Left
             recTitle.LayoutOrder = 1
+            recTitle.ZIndex = 50
             
             local recFrame = Instance.new("Frame", StickerScroll)
             recFrame.Size = UDim2.new(1, 0, 0, 0)
             recFrame.BackgroundTransparency = 1
             recFrame.AutomaticSize = Enum.AutomaticSize.Y
             recFrame.LayoutOrder = 2
+            recFrame.ZIndex = 50
             
             local recGrid = Instance.new("UIGridLayout", recFrame)
             recGrid.CellSize = UDim2.new(0, 50, 0, 50)
@@ -646,6 +900,7 @@ StickerBtn.MouseButton1Click:Connect(function()
                     local b = Instance.new("ImageButton", recFrame)
                     b.BackgroundTransparency = 1
                     b.ScaleType = Enum.ScaleType.Fit
+                    b.ZIndex = 50
                     
                     if getcustomasset and isfile(path) then
                         pcall(function() b.Image = getcustomasset(path) end)
@@ -674,12 +929,14 @@ StickerBtn.MouseButton1Click:Connect(function()
         allTitle.TextSize = 11
         allTitle.TextXAlignment = Enum.TextXAlignment.Left
         allTitle.LayoutOrder = 3
+        allTitle.ZIndex = 50
         
         local allFrame = Instance.new("Frame", StickerScroll)
         allFrame.Size = UDim2.new(1, 0, 0, 0)
         allFrame.BackgroundTransparency = 1
         allFrame.AutomaticSize = Enum.AutomaticSize.Y
         allFrame.LayoutOrder = 4
+        allFrame.ZIndex = 50
         
         local allGrid = Instance.new("UIGridLayout", allFrame)
         allGrid.CellSize = UDim2.new(0, 50, 0, 50)
@@ -692,6 +949,7 @@ StickerBtn.MouseButton1Click:Connect(function()
             local b = Instance.new("ImageButton", allFrame)
             b.BackgroundTransparency = 1
             b.ScaleType = Enum.ScaleType.Fit
+            b.ZIndex = 50
             
             if getcustomasset and isfile(path) then
                 pcall(function() b.Image = getcustomasset(path) end)
@@ -706,7 +964,6 @@ StickerBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Sistema de Digitando... 
 local typeDebounce = false
 ChatBox:GetPropertyChangedSignal("Text"):Connect(function()
     if ChatBox.Text ~= "" and ActiveChatTarget ~= "" then
