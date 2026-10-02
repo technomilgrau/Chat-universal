@@ -393,33 +393,26 @@ ApoioBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) ApoioBtn.Text = "❤️ A
 ApoioBtn.MouseButton1Click:Connect(function()
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
     ModalContainer.Visible = true
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 190) box.Position = UDim2.new(0.5, -130, 0.5, -95) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 230) box.Position = UDim2.new(0.5, -130, 0.5, -115) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
     local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Apoie o Servidor" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 14 ttl.ZIndex = 102
     local txt = Instance.new("TextLabel", box) txt.Size = UDim2.new(1, -20, 0, 90) txt.Position = UDim2.new(0, 10, 0, 35) txt.BackgroundTransparency = 1
     txt.Text = "nosso servidor usa um serviço de hospedagem gratuita, se quiser ajudar pagando pra que possamos melhora os servidores e tbm a velocidade do servidor faça um pix de qualquer valor na chave:\n\nc7c793f4-f1cf-447a-9641-21d065139be4"
     txt.TextColor3 = Color3.fromRGB(200, 200, 200) txt.Font = Enum.Font.Gotham txt.TextSize = 10 txt.TextWrapped = true txt.ZIndex = 102
-    local bClose = Instance.new("TextButton", box) bClose.Size = UDim2.new(0.8, 0, 0, 30) bClose.Position = UDim2.new(0.1, 0, 1, -38) bClose.BackgroundColor3 = Color3.fromRGB(50, 50, 55) bClose.Text = "Fechar" bClose.TextColor3 = Color3.fromRGB(255, 255, 255) bClose.Font = Enum.Font.GothamBold bClose.ZIndex = 102 Instance.new("UICorner", bClose).CornerRadius = UDim.new(0, 6)
-    bClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
-end)
+    
+    local bCopy = Instance.new("TextButton", box) bCopy.Size = UDim2.new(0.8, 0, 0, 30) bCopy.Position = UDim2.new(0.1, 0, 1, -75) bCopy.BackgroundColor3 = Color3.fromRGB(230, 126, 34) bCopy.Text = "Copiar chave" bCopy.TextColor3 = Color3.fromRGB(255, 255, 255) bCopy.Font = Enum.Font.GothamBold bCopy.ZIndex = 102 Instance.new("UICorner", bCopy).CornerRadius = UDim.new(0, 6)
+    bCopy.MouseButton1Click:Connect(function()
+        if setclipboard then setclipboard("c7c793f4-f1cf-447a-9641-21d065139be4") end
+        ShowToast("chave pix copiada")
+    end)
 
--- BOTÃO AJUDA
-local HelpBtn = Instance.new("TextButton", MainMenu)
-HelpBtn.Size = UDim2.new(0, 240, 0, 45) HelpBtn.Position = UDim2.new(0.5, -120, 0, 240)
-HelpBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) HelpBtn.Text = "❓ Ajuda" HelpBtn.TextColor3 = Color3.fromRGB(255, 255, 255) HelpBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", HelpBtn).CornerRadius = UDim.new(0, 6)
-
-HelpBtn.MouseButton1Click:Connect(function()
-    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
-    ModalContainer.Visible = true
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 150) box.Position = UDim2.new(0.5, -130, 0.5, -75) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
-    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Ajuda" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 14 ttl.ZIndex = 102
-    local txt = Instance.new("TextLabel", box) txt.Size = UDim2.new(1, -20, 0, 60) txt.Position = UDim2.new(0, 10, 0, 35) txt.BackgroundTransparency = 1 txt.Text = "Use o Chat-Universal para conversar com amigos em qualquer jogo! Adicione pessoas pelo nick e troque mensagens e figurinhas." txt.TextColor3 = Color3.fromRGB(200, 200, 200) txt.Font = Enum.Font.Gotham txt.TextSize = 11 txt.TextWrapped = true txt.ZIndex = 102
     local bClose = Instance.new("TextButton", box) bClose.Size = UDim2.new(0.8, 0, 0, 30) bClose.Position = UDim2.new(0.1, 0, 1, -38) bClose.BackgroundColor3 = Color3.fromRGB(50, 50, 55) bClose.Text = "Fechar" bClose.TextColor3 = Color3.fromRGB(255, 255, 255) bClose.Font = Enum.Font.GothamBold bClose.ZIndex = 102 Instance.new("UICorner", bClose).CornerRadius = UDim.new(0, 6)
     bClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
 end)
 
 -- BOTÃO REPORT
 local ReportBtn = Instance.new("TextButton", MainMenu)
-ReportBtn.Size = UDim2.new(0, 240, 0, 45) ReportBtn.Position = UDim2.new(0.5, -120, 0, 295)
+ReportBtn.Size = UDim2.new(0, 240, 0, 45) ReportBtn.Position = UDim2.new(0.5, -120, 0, 240)
+
 ReportBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) ReportBtn.Text = "🚨 Report" ReportBtn.TextColor3 = Color3.fromRGB(255, 255, 255) ReportBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", ReportBtn).CornerRadius = UDim.new(0, 6)
 
 local reportDraftText = ""
@@ -447,9 +440,13 @@ ReportBtn.MouseButton1Click:Connect(function()
     
     bSend.MouseButton1Click:Connect(function()
         local txt = input.Text
-        if string.len(txt) < 15 then return end
+        if string.len(txt) < 15 then 
+            ShowToast("mínimo 15 caracteres!")
+            return 
+        end
         
         ModalContainer.Visible = false
+
         reportDraftText = ""
         ShowToast("mensagem enviada!")
         
@@ -502,9 +499,18 @@ function OpenProfileUI(targetUsername)
             if isMe then ProfDName.Text = data.displayName .. " (Você)" else ProfDName.Text = data.displayName end
             
             ProfUName.Text = "@" .. data.username
-            ProfStats.Text = "amigos " .. tostring(data.friendCount or 0)
             
             local isFriend = table.find(LocalData.Friends, targetUsername) ~= nil
+            
+            -- Puxa a contagem de forma perfeita usando a lista de amigos salva localmente para você mesmo,
+            -- e garante que mostre no mínimo 1 caso vocês já sejam amigos verificados.
+            local realCount = data.friendCount or 0
+            if isMe then 
+                realCount = #LocalData.Friends 
+            elseif isFriend then 
+                realCount = math.max(1, realCount) 
+            end
+            ProfStats.Text = "amigos " .. tostring(realCount)
             
             if isMe then
                 ProfBtn.Visible = false
@@ -834,7 +840,16 @@ local function OpenMessageEditModal(msg)
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
     ModalContainer.Visible = true
     
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 250, 0, 150) box.Position = UDim2.new(0.5, -125, 0.5, -75) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    -- Botão invisível de fundo para fechar clicando fora
+    local bgClose = Instance.new("TextButton", ModalContainer)
+    bgClose.Size = UDim2.new(1, 0, 1, 0)
+    bgClose.BackgroundTransparency = 1
+    bgClose.Text = ""
+    bgClose.ZIndex = 100
+    bgClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+    
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 250, 0, 150)
+ box.Position = UDim2.new(0.5, -125, 0.5, -75) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
     local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Editar Mensagem" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 13 ttl.ZIndex = 102
     
     local input = Instance.new("TextBox", box) input.Size = UDim2.new(1, -20, 0, 60) input.Position = UDim2.new(0, 10, 0, 35) input.BackgroundColor3 = Color3.fromRGB(20, 20, 25) input.TextColor3 = Color3.fromRGB(255, 255, 255) input.Text = msg.text input.MultiLine = true input.TextWrapped = true input.Font = Enum.Font.Gotham input.TextSize = 12 input.ClearTextOnFocus = false input.ZIndex = 102 Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
@@ -868,7 +883,16 @@ local function OpenMessageActionsModal(msg)
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
     ModalContainer.Visible = true
     
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 220, 0, msg.type == "text" and 130 or 90) box.Position = UDim2.new(0.5, -110, 0.5, -65) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    -- Botão invisível de fundo para fechar clicando fora
+    local bgClose = Instance.new("TextButton", ModalContainer)
+    bgClose.Size = UDim2.new(1, 0, 1, 0)
+    bgClose.BackgroundTransparency = 1
+    bgClose.Text = ""
+    bgClose.ZIndex = 100
+    bgClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+    
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 220, 0, msg.type == "text" and 130 or 90)
+ box.Position = UDim2.new(0.5, -110, 0.5, -65) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
     local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Opções da Mensagem" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 13 ttl.ZIndex = 102
 
     local btnY = 35
@@ -985,7 +1009,6 @@ function SendPrivateMessage(msgType, content)
 end
 
 SendBtn.MouseButton1Click:Connect(function() SendPrivateMessage("text") end)
-ChatBox.FocusLost:Connect(function(ep) if ep then SendPrivateMessage("text") end end)
 
 -- ==========================================
 -- VERIFICAÇÃO E DOWNLOAD DE REPORTS PARA O DONO (ID 4852836391)
