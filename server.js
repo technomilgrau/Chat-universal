@@ -31,6 +31,12 @@ const pendingDeletes = db.pendingDeletes;
 const typingStatus = {};   
 const globalEvents = {};   
 const syncData = {};       
+const chatHistory = {};    // Backup em memória
+
+function getPairKey(u1, u2) {
+    if (!u1 || !u2) return '';
+    return [u1, u2].sort().join(':');
+}
 
 // Salvar a cada 10 segundos pra não perder nada de amigos ou filas offline
 setInterval(saveDB, 10000);
@@ -213,6 +219,14 @@ app.post('/send_message', (req, res) => {
     if (!pendingMessages[to]) pendingMessages[to] = [];
     pendingMessages[to].push(msg);
 
+    if (from && to) {
+        const pairKey = getPairKey(from, to);
+        if (!chatHistory[pairKey]) chatHistory[pairKey] = [];
+        if (!chatHistory[pairKey].some(m => m.id === msg.id)) {
+            chatHistory[pairKey].push(msg);
+        }
+    }
+
     res.json({ success: true });
 });
 
@@ -221,6 +235,14 @@ app.post('/edit_message', (req, res) => {
     const { from, to, msgId, newText } = req.body;
     if (!pendingEdits[to]) pendingEdits[to] = [];
     pendingEdits[to].push({ sender: from, msgId, newText });
+
+    if (from && to) {
+        const pairKey = getPairKey(from, to);
+        if (chatHistory[pairKey]) {
+            const m = chatHistory[pairKey].find(x => x.id === msgId);
+            if (m) { m.text = newText; m.isEdited = true; }
+        }
+    }
     res.json({ success: true });
 });
 
@@ -229,7 +251,23 @@ app.post('/delete_message', (req, res) => {
     const { from, to, msgId } = req.body;
     if (!pendingDeletes[to]) pendingDeletes[to] = [];
     pendingDeletes[to].push({ sender: from, msgId });
+
+    if (from && to) {
+        const pairKey = getPairKey(from, to);
+        if (chatHistory[pairKey]) {
+            const m = chatHistory[pairKey].find(x => x.id === msgId);
+            if (m) { m.isDeleted = true; }
+        }
+    }
     res.json({ success: true });
+});
+
+// Obter Histórico do Servidor (Recuperação de mensagens)
+app.get('/get_chat_history', (req, res) => {
+    const { user1, user2 } = req.query;
+    if (!user1 || !user2) return res.json([]);
+    const pairKey = getPairKey(user1, user2);
+    res.json(chatHistory[pairKey] || []);
 });
 
 // Obter Todos os Pendentes (Fila Offline)
@@ -280,6 +318,11 @@ app.post('/provide_sync', (req, res) => {
     const { from, to, history } = req.body;
     if (!syncData[to]) syncData[to] = {};
     syncData[to][from] = history;
+
+    if (from && to && Array.isArray(history)) {
+        const pairKey = getPairKey(from, to);
+        chatHistory[pairKey] = history;
+    }
     res.json({ success: true });
 });
 
