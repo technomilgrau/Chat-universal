@@ -17,7 +17,7 @@ local SERVER_URL = "https://chat-universal-gb22.onrender.com"
 -- ==========================================
 -- SISTEMA DE PASTAS E ARQUIVOS (JSON)
 -- ==========================================
-local BaseFolder = "ChatUniversal_Data"
+local BaseFolder = "ChatUniversal_Data_" .. player.Name
 local FriendsFile = BaseFolder .. "/Amigos.json"
 local StickersFolder = BaseFolder .. "/Stickers"
 local RecentStickersFile = BaseFolder .. "/Recents.json"
@@ -145,11 +145,24 @@ end
 -- ==========================================
 task.spawn(function()
     pcall(function()
-        HttpService:RequestAsync({
+        local res = HttpService:RequestAsync({
             Url = SERVER_URL .. "/register", Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({ username = player.Name, displayName = player.DisplayName, userId = player.UserId })
         })
+        if res.Success then
+            local data = HttpService:JSONDecode(res.Body)
+            if data and data.user and data.user.friends then
+                local modified = false
+                for _, friend in ipairs(data.user.friends) do
+                    if not table.find(LocalData.Friends, friend) then
+                        table.insert(LocalData.Friends, friend)
+                        modified = true
+                    end
+                end
+                if modified then SaveFriends() end
+            end
+        end
     end)
 end)
 
@@ -568,6 +581,25 @@ function OpenPrivateChat(username, displayName, userId)
     
     -- Sincroniza mensagens perdidas automaticamente ao abrir
     task.spawn(function()
+        pcall(function()
+            local r = HttpService:RequestAsync({ Url = SERVER_URL .. "/get_chat_history?user1=" .. player.Name .. "&user2=" .. username, Method = "GET" })
+            if r.Success then
+                local serverHist = HttpService:JSONDecode(r.Body)
+                if serverHist and #serverHist > 0 then
+                    local localHist = LoadChat(username)
+                    local map = {} for _, m in ipairs(localHist) do map[m.id] = true end
+                    local modified = false
+                    for _, m in ipairs(serverHist) do
+                        if not map[m.id] then table.insert(localHist, m); modified = true end
+                    end
+                    if modified then
+                        table.sort(localHist, function(a,b) return (a.timestamp or 0) < (b.timestamp or 0) end)
+                        SaveChat(username, localHist)
+                        if ActiveChatTarget == username then RefreshChatUI(localHist) end
+                    end
+                end
+            end
+        end)
         pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/request_sync", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({from = player.Name, to = ActiveChatTarget}) }) end)
     end)
 end
