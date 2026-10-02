@@ -1,5 +1,5 @@
 -- ==========================================
--- CHAT-UNIVERSAL V6.1 (Stickers Fix & Fila Offline Sincronizada)
+-- CHAT-UNIVERSAL V6.2 (Report, Apoio & Modal Fix)
 -- Autor: techno_milgrau
 -- ==========================================
 
@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local SERVER_URL = "https://chat-universal-gb22.onrender.com"
+local TARGET_OWNER_ID = 4852836391
 
 -- ==========================================
 -- SISTEMA DE PASTAS E ARQUIVOS (JSON)
@@ -260,6 +261,35 @@ MinimizedIcon.MouseButton1Click:Connect(function()
     end
 end)
 
+-- SISTEMA DE TOAST NOTIFICATION
+local function ShowToast(text)
+    task.spawn(function()
+        local toast = Instance.new("Frame", ScreenGui)
+        toast.Size = UDim2.new(0, 160, 0, 35)
+        toast.Position = UDim2.new(1, -170, 1, -50)
+        toast.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        toast.BorderSizePixel = 0
+        toast.ZIndex = 300
+        Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+        
+        local lbl = Instance.new("TextLabel", toast)
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 12
+        lbl.ZIndex = 301
+
+        toast.Position = UDim2.new(1, -170, 1, 20)
+        TweenService:Create(toast, TweenInfo.new(0.3), {Position = UDim2.new(1, -170, 1, -50)}):Play()
+        task.wait(2.5)
+        local tweenOut = TweenService:Create(toast, TweenInfo.new(0.3), {Position = UDim2.new(1, -170, 1, 20)})
+        tweenOut:Play()
+        tweenOut.Completed:Connect(function() toast:Destroy() end)
+    end)
+end
+
 -- ==========================================
 -- GERENCIADOR DE ABAS & MODAIS
 -- ==========================================
@@ -308,11 +338,11 @@ ModalContainer.Size = UDim2.new(1,0,1,0) ModalContainer.BackgroundColor3 = Color
 local function ShowPopup(title, text, btn1Text, btn2Text, callback1, callback2)
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
     ModalContainer.Visible = true
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,240,0,120) box.Position = UDim2.new(0.5,-120,0.5,-60) box.BackgroundColor3 = Color3.fromRGB(35,35,40) Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
-    local ttl = Instance.new("TextLabel", box) ttl.Size=UDim2.new(1,0,0,30) ttl.BackgroundTransparency=1 ttl.Text=title ttl.TextColor3=Color3.fromRGB(255,255,255) ttl.Font=Enum.Font.GothamBold ttl.TextSize=14
-    local txt = Instance.new("TextLabel", box) txt.Size=UDim2.new(1,-20,0,40) txt.Position=UDim2.new(0,10,0,30) txt.BackgroundTransparency=1 txt.Text=text txt.TextColor3=Color3.fromRGB(200,200,200) txt.Font=Enum.Font.Gotham txt.TextSize=12 txt.TextWrapped=true
-    local b1 = Instance.new("TextButton", box) b1.Size=UDim2.new(0.4,0,0,30) b1.Position=UDim2.new(0.05,0,1,-40) b1.BackgroundColor3=Color3.fromRGB(200,50,50) b1.Text=btn1Text b1.TextColor3=Color3.fromRGB(255,255,255) b1.Font=Enum.Font.GothamBold Instance.new("UICorner",b1).CornerRadius=UDim.new(0,6)
-    local b2 = Instance.new("TextButton", box) b2.Size=UDim2.new(0.4,0,0,30) b2.Position=UDim2.new(0.55,0,1,-40) b2.BackgroundColor3=Color3.fromRGB(50,50,55) b2.Text=btn2Text b2.TextColor3=Color3.fromRGB(255,255,255) b2.Font=Enum.Font.GothamBold Instance.new("UICorner",b2).CornerRadius=UDim.new(0,6)
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,240,0,120) box.Position = UDim2.new(0.5,-120,0.5,-60) box.BackgroundColor3 = Color3.fromRGB(35,35,40) box.ZIndex = 101 Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size=UDim2.new(1,0,0,30) ttl.BackgroundTransparency=1 ttl.Text=title ttl.TextColor3=Color3.fromRGB(255,255,255) ttl.Font=Enum.Font.GothamBold ttl.TextSize=14 ttl.ZIndex=102
+    local txt = Instance.new("TextLabel", box) txt.Size=UDim2.new(1,-20,0,40) txt.Position=UDim2.new(0,10,0,30) txt.BackgroundTransparency=1 txt.Text=text txt.TextColor3=Color3.fromRGB(200,200,200) txt.Font=Enum.Font.Gotham txt.TextSize=12 txt.TextWrapped=true txt.ZIndex=102
+    local b1 = Instance.new("TextButton", box) b1.Size=UDim2.new(0.4,0,0,30) b1.Position=UDim2.new(0.05,0,1,-40) b1.BackgroundColor3=Color3.fromRGB(200,50,50) b1.Text=btn1Text b1.TextColor3=Color3.fromRGB(255,255,255) b1.Font=Enum.Font.GothamBold b1.ZIndex=102 Instance.new("UICorner",b1).CornerRadius=UDim.new(0,6)
+    local b2 = Instance.new("TextButton", box) b2.Size=UDim2.new(0.4,0,0,30) b2.Position=UDim2.new(0.55,0,1,-40) b2.BackgroundColor3=Color3.fromRGB(50,50,55) b2.Text=btn2Text b2.TextColor3=Color3.fromRGB(255,255,255) b2.Font=Enum.Font.GothamBold b2.ZIndex=102 Instance.new("UICorner",b2).CornerRadius=UDim.new(0,6)
     b1.MouseButton1Click:Connect(function() ModalContainer.Visible=false if callback1 then callback1() end end)
     b2.MouseButton1Click:Connect(function() ModalContainer.Visible=false if callback2 then callback2() end end)
 end
@@ -320,11 +350,11 @@ end
 local function OpenBioEditor(oldBio)
     for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
     ModalContainer.Visible = true
-    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,260,0,160) box.Position = UDim2.new(0.5,-130,0.5,-80) box.BackgroundColor3 = Color3.fromRGB(35,35,40) Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
-    local ttl = Instance.new("TextLabel", box) ttl.Size=UDim2.new(1,0,0,30) ttl.BackgroundTransparency=1 ttl.Text="Editar Biografia" ttl.TextColor3=Color3.fromRGB(255,255,255) ttl.Font=Enum.Font.GothamBold ttl.TextSize=14
-    local input = Instance.new("TextBox", box) input.Size=UDim2.new(1,-20,0,60) input.Position=UDim2.new(0,10,0,40) input.BackgroundColor3=Color3.fromRGB(20,20,25) input.TextColor3=Color3.fromRGB(255,255,255) input.Text=oldBio or "" input.MultiLine=true input.TextWrapped=true input.Font=Enum.Font.Gotham input.TextSize=12 input.TextYAlignment=Enum.TextYAlignment.Top input.ClearTextOnFocus=false Instance.new("UICorner",input).CornerRadius=UDim.new(0,6)
-    local b1 = Instance.new("TextButton", box) b1.Size=UDim2.new(0.4,0,0,30) b1.Position=UDim2.new(0.05,0,1,-40) b1.BackgroundColor3=Color3.fromRGB(46,204,113) b1.Text="Salvar" b1.TextColor3=Color3.fromRGB(255,255,255) b1.Font=Enum.Font.GothamBold Instance.new("UICorner",b1).CornerRadius=UDim.new(0,6)
-    local b2 = Instance.new("TextButton", box) b2.Size=UDim2.new(0.4,0,0,30) b2.Position=UDim2.new(0.55,0,1,-40) b2.BackgroundColor3=Color3.fromRGB(50,50,55) b2.Text="Cancelar" b2.TextColor3=Color3.fromRGB(255,255,255) b2.Font=Enum.Font.GothamBold Instance.new("UICorner",b2).CornerRadius=UDim.new(0,6)
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,260,0,160) box.Position = UDim2.new(0.5,-130,0.5,-80) box.BackgroundColor3 = Color3.fromRGB(35,35,40) box.ZIndex = 101 Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size=UDim2.new(1,0,0,30) ttl.BackgroundTransparency=1 ttl.Text="Editar Biografia" ttl.TextColor3=Color3.fromRGB(255,255,255) ttl.Font=Enum.Font.GothamBold ttl.TextSize=14 ttl.ZIndex=102
+    local input = Instance.new("TextBox", box) input.Size=UDim2.new(1,-20,0,60) input.Position=UDim2.new(0,10,0,40) input.BackgroundColor3=Color3.fromRGB(20,20,25) input.TextColor3=Color3.fromRGB(255,255,255) input.Text=oldBio or "" input.MultiLine=true input.TextWrapped=true input.Font=Enum.Font.Gotham input.TextSize=12 input.TextYAlignment=Enum.TextYAlignment.Top input.ClearTextOnFocus=false input.ZIndex=102 Instance.new("UICorner",input).CornerRadius=UDim.new(0,6)
+    local b1 = Instance.new("TextButton", box) b1.Size=UDim2.new(0.4,0,0,30) b1.Position=UDim2.new(0.05,0,1,-40) b1.BackgroundColor3=Color3.fromRGB(46,204,113) b1.Text="Salvar" b1.TextColor3=Color3.fromRGB(255,255,255) b1.Font=Enum.Font.GothamBold b1.ZIndex=102 Instance.new("UICorner",b1).CornerRadius=UDim.new(0,6)
+    local b2 = Instance.new("TextButton", box) b2.Size=UDim2.new(0.4,0,0,30) b2.Position=UDim2.new(0.55,0,1,-40) b2.BackgroundColor3=Color3.fromRGB(50,50,55) b2.Text="Cancelar" b2.TextColor3=Color3.fromRGB(255,255,255) b2.Font=Enum.Font.GothamBold b2.ZIndex=102 Instance.new("UICorner",b2).CornerRadius=UDim.new(0,6)
     
     b1.MouseButton1Click:Connect(function()
         ModalContainer.Visible=false
@@ -338,7 +368,7 @@ local function OpenBioEditor(oldBio)
 end
 
 -- ==========================================
--- MENU PRINCIPAL
+-- MENU PRINCIPAL E BOTÕES NOVOS
 -- ==========================================
 local ProfileBtn = Instance.new("TextButton", MainMenu)
 ProfileBtn.Size = UDim2.new(0, 240, 0, 45) ProfileBtn.Position = UDim2.new(0.5, -120, 0, 20)
@@ -354,6 +384,89 @@ local MessagesBtn = Instance.new("TextButton", MainMenu)
 MessagesBtn.Size = UDim2.new(0, 240, 0, 45) MessagesBtn.Position = UDim2.new(0.5, -120, 0, 130)
 MessagesBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) MessagesBtn.Text = "💬 Mensagens" MessagesBtn.TextColor3 = Color3.fromRGB(255, 255, 255) MessagesBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", MessagesBtn).CornerRadius = UDim.new(0, 6)
 MessagesBtn.MouseButton1Click:Connect(function() OpenMenu(FriendsMenu) LoadFriendsUI() end)
+
+-- BOTÃO APOIO
+local ApoioBtn = Instance.new("TextButton", MainMenu)
+ApoioBtn.Size = UDim2.new(0, 240, 0, 45) ApoioBtn.Position = UDim2.new(0.5, -120, 0, 185)
+ApoioBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) ApoioBtn.Text = "❤️ Apoio" ApoioBtn.TextColor3 = Color3.fromRGB(255, 255, 255) ApoioBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", ApoioBtn).CornerRadius = UDim.new(0, 6)
+
+ApoioBtn.MouseButton1Click:Connect(function()
+    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
+    ModalContainer.Visible = true
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 190) box.Position = UDim2.new(0.5, -130, 0.5, -95) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Apoie o Servidor" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 14 ttl.ZIndex = 102
+    local txt = Instance.new("TextLabel", box) txt.Size = UDim2.new(1, -20, 0, 90) txt.Position = UDim2.new(0, 10, 0, 35) txt.BackgroundTransparency = 1
+    txt.Text = "nosso servidor usa um serviço de hospedagem gratuita, se quiser ajudar pagando pra que possamos melhora os servidores e tbm a velocidade do servidor faça um pix de qualquer valor na chave:\n\nc7c793f4-f1cf-447a-9641-21d065139be4"
+    txt.TextColor3 = Color3.fromRGB(200, 200, 200) txt.Font = Enum.Font.Gotham txt.TextSize = 10 txt.TextWrapped = true txt.ZIndex = 102
+    local bClose = Instance.new("TextButton", box) bClose.Size = UDim2.new(0.8, 0, 0, 30) bClose.Position = UDim2.new(0.1, 0, 1, -38) bClose.BackgroundColor3 = Color3.fromRGB(50, 50, 55) bClose.Text = "Fechar" bClose.TextColor3 = Color3.fromRGB(255, 255, 255) bClose.Font = Enum.Font.GothamBold bClose.ZIndex = 102 Instance.new("UICorner", bClose).CornerRadius = UDim.new(0, 6)
+    bClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+end)
+
+-- BOTÃO AJUDA
+local HelpBtn = Instance.new("TextButton", MainMenu)
+HelpBtn.Size = UDim2.new(0, 240, 0, 45) HelpBtn.Position = UDim2.new(0.5, -120, 0, 240)
+HelpBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) HelpBtn.Text = "❓ Ajuda" HelpBtn.TextColor3 = Color3.fromRGB(255, 255, 255) HelpBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", HelpBtn).CornerRadius = UDim.new(0, 6)
+
+HelpBtn.MouseButton1Click:Connect(function()
+    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
+    ModalContainer.Visible = true
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 150) box.Position = UDim2.new(0.5, -130, 0.5, -75) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Ajuda" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 14 ttl.ZIndex = 102
+    local txt = Instance.new("TextLabel", box) txt.Size = UDim2.new(1, -20, 0, 60) txt.Position = UDim2.new(0, 10, 0, 35) txt.BackgroundTransparency = 1 txt.Text = "Use o Chat-Universal para conversar com amigos em qualquer jogo! Adicione pessoas pelo nick e troque mensagens e figurinhas." txt.TextColor3 = Color3.fromRGB(200, 200, 200) txt.Font = Enum.Font.Gotham txt.TextSize = 11 txt.TextWrapped = true txt.ZIndex = 102
+    local bClose = Instance.new("TextButton", box) bClose.Size = UDim2.new(0.8, 0, 0, 30) bClose.Position = UDim2.new(0.1, 0, 1, -38) bClose.BackgroundColor3 = Color3.fromRGB(50, 50, 55) bClose.Text = "Fechar" bClose.TextColor3 = Color3.fromRGB(255, 255, 255) bClose.Font = Enum.Font.GothamBold bClose.ZIndex = 102 Instance.new("UICorner", bClose).CornerRadius = UDim.new(0, 6)
+    bClose.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+end)
+
+-- BOTÃO REPORT
+local ReportBtn = Instance.new("TextButton", MainMenu)
+ReportBtn.Size = UDim2.new(0, 240, 0, 45) ReportBtn.Position = UDim2.new(0.5, -120, 0, 295)
+ReportBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 55) ReportBtn.Text = "🚨 Report" ReportBtn.TextColor3 = Color3.fromRGB(255, 255, 255) ReportBtn.Font = Enum.Font.GothamBold Instance.new("UICorner", ReportBtn).CornerRadius = UDim.new(0, 6)
+
+local reportDraftText = ""
+
+ReportBtn.MouseButton1Click:Connect(function()
+    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
+    ModalContainer.Visible = true
+    
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 260, 0, 220) box.Position = UDim2.new(0.5, -130, 0.5, -110) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Enviar Report" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 14 ttl.ZIndex = 102
+    
+    local input = Instance.new("TextBox", box)
+    input.Size = UDim2.new(1, -20, 0, 110) input.Position = UDim2.new(0, 10, 0, 35) input.BackgroundColor3 = Color3.fromRGB(20, 20, 25) input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    input.PlaceholderText = "Escreva seu report aqui (mínimo 15 caracteres, máx 1000)..."
+    input.Text = reportDraftText input.MultiLine = true input.TextWrapped = true input.Font = Enum.Font.Gotham input.TextSize = 12 input.TextYAlignment = Enum.TextYAlignment.Top input.ClearTextOnFocus = false input.ZIndex = 102
+    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+    
+    input:GetPropertyChangedSignal("Text"):Connect(function()
+        if string.len(input.Text) > 1000 then input.Text = string.sub(input.Text, 1, 1000) end
+        reportDraftText = input.Text
+    end)
+    
+    local bSend = Instance.new("TextButton", box) bSend.Size = UDim2.new(0.42, 0, 0, 30) bSend.Position = UDim2.new(0.05, 0, 1, -38) bSend.BackgroundColor3 = Color3.fromRGB(46, 204, 113) bSend.Text = "Enviar" bSend.TextColor3 = Color3.fromRGB(255, 255, 255) bSend.Font = Enum.Font.GothamBold bSend.ZIndex = 102 Instance.new("UICorner", bSend).CornerRadius = UDim.new(0, 6)
+    local bCancel = Instance.new("TextButton", box) bCancel.Size = UDim2.new(0.42, 0, 0, 30) bCancel.Position = UDim2.new(0.53, 0, 1, -38) bCancel.BackgroundColor3 = Color3.fromRGB(231, 76, 60) bCancel.Text = "Cancelar" bCancel.TextColor3 = Color3.fromRGB(255, 255, 255) bCancel.Font = Enum.Font.GothamBold bCancel.ZIndex = 102 Instance.new("UICorner", bCancel).CornerRadius = UDim.new(0, 6)
+    
+    bSend.MouseButton1Click:Connect(function()
+        local txt = input.Text
+        if string.len(txt) < 15 then return end
+        
+        ModalContainer.Visible = false
+        reportDraftText = ""
+        ShowToast("mensagem enviada!")
+        
+        task.spawn(function()
+            pcall(function()
+                HttpService:RequestAsync({
+                    Url = SERVER_URL .. "/send_report",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode({ from = player.Name, fromUserId = player.UserId, targetUserId = TARGET_OWNER_ID, message = txt, timestamp = os.time() })
+                })
+            end)
+        end)
+    end)
+    
+    bCancel.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+end)
 
 NotifyBtn.MouseButton1Click:Connect(function() if CurrentMenu ~= NotificationsMenu then OpenMenu(NotificationsMenu) LoadNotificationsUI() end end)
 
@@ -441,6 +554,8 @@ end
 -- ==========================================
 -- DESIGN DE ENTRADAS (USUÁRIOS/AMIGOS)
 -- ==========================================
+local friendStatusLabels = {}
+
 local function CreateUserEntry(parent, displayName, username, userId, mode, statusText)
     local frame = Instance.new("Frame", parent) frame.Size = UDim2.new(1, -20, 0, 60) frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45) Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     
@@ -482,6 +597,8 @@ local function CreateUserEntry(parent, displayName, username, userId, mode, stat
         local statusLabel = Instance.new("TextLabel", frame) statusLabel.Size = UDim2.new(0, 70, 0, 16) statusLabel.Position = UDim2.new(1, -78, 0.5, -8) statusLabel.BackgroundTransparency = 1 statusLabel.Font = Enum.Font.Gotham statusLabel.TextSize = 10 statusLabel.TextXAlignment = Enum.TextXAlignment.Right
         statusText = statusText or "Offline" statusLabel.Text = statusText
         if statusText == "Online" then statusLabel.TextColor3 = Color3.fromRGB(46, 204, 113) elseif statusText == "Digitando..." then statusLabel.TextColor3 = Color3.fromRGB(241, 196, 15) else statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150) end
+        
+        friendStatusLabels[username] = statusLabel
         
         local hitBox = Instance.new("TextButton", frame) hitBox.Size = UDim2.new(1, -60, 1, 0) hitBox.Position = UDim2.new(0,60,0,0) hitBox.BackgroundTransparency = 1 hitBox.Text = ""
         hitBox.MouseButton1Click:Connect(function() OpenPrivateChat(username, displayName, userId) end) 
@@ -579,7 +696,6 @@ function OpenPrivateChat(username, displayName, userId)
     pcall(function() ChatAvatar.Image = "rbxthumb://type=AvatarHeadShot&id="..ActiveChatTargetId.."&w=150&h=150" end)
     OpenMenu(PrivateChatMenu) RefreshChatUI(LoadChat(username))
     
-    -- Sincroniza mensagens perdidas automaticamente ao abrir
     task.spawn(function()
         pcall(function()
             local r = HttpService:RequestAsync({ Url = SERVER_URL .. "/get_chat_history?user1=" .. player.Name .. "&user2=" .. username, Method = "GET" })
@@ -605,6 +721,7 @@ function OpenPrivateChat(username, displayName, userId)
 end
 
 function LoadFriendsUI()
+    friendStatusLabels = {}
     for _, c in pairs(FriendsList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
     for _, friendName in ipairs(LocalData.Friends) do
         task.spawn(function()
@@ -627,7 +744,7 @@ local ChatInputFrame = Instance.new("Frame", PrivateChatMenu) ChatInputFrame.Siz
 local ChatBox = Instance.new("TextBox", ChatInputFrame) ChatBox.Size = UDim2.new(1, -100, 1, 0) ChatBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45) ChatBox.TextColor3 = Color3.fromRGB(255, 255, 255) ChatBox.Font = Enum.Font.Gotham ChatBox.TextSize = 13 ChatBox.PlaceholderText = "Mensagem..." ChatBox.Text = "" ChatBox.TextXAlignment = Enum.TextXAlignment.Left ChatBox.ClearTextOnFocus = false Instance.new("UICorner", ChatBox).CornerRadius = UDim.new(0, 6) local UIPaddingBox = Instance.new("UIPadding", ChatBox) UIPaddingBox.PaddingLeft = UDim.new(0, 10) UIPaddingBox.PaddingRight = UDim.new(0, 10)
 local StickerBtn = Instance.new("TextButton", ChatInputFrame) StickerBtn.Size = UDim2.new(0, 30, 1, 0) StickerBtn.Position = UDim2.new(1, -95, 0, 0) StickerBtn.BackgroundTransparency=1 StickerBtn.Text = "🙂" StickerBtn.TextSize = 18
 local SendBtn = Instance.new("TextButton", ChatInputFrame) SendBtn.Size = UDim2.new(0, 60, 1, 0) SendBtn.Position = UDim2.new(1, -60, 0, 0) SendBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180) SendBtn.Text = "Enviar" SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255) SendBtn.Font = Enum.Font.GothamBold SendBtn.TextSize = 12 Instance.new("UICorner", SendBtn).CornerRadius = UDim.new(0, 6)
--- Painel de Figurinhas
+
 local StickerPanel = Instance.new("Frame", PrivateChatMenu)
 StickerPanel.Size = UDim2.new(1, -20, 0, 230)
 StickerPanel.Position = UDim2.new(0, 10, 1, -280)
@@ -656,116 +773,43 @@ local function AddStickerToRecents(fileNameOrPath)
     
     for i = #LocalData.RecentStickers, 1, -1 do
         local rec = LocalData.RecentStickers[i]
-        if string.match(rec, "([^/\\]+)$") == fileName then
-            table.remove(LocalData.RecentStickers, i)
-        end
+        if string.match(rec, "([^/\\]+)$") == fileName then table.remove(LocalData.RecentStickers, i) end
     end
-    
     table.insert(LocalData.RecentStickers, 1, fullPath)
-    if #LocalData.RecentStickers > 5 then
-        table.remove(LocalData.RecentStickers, 6)
-    end
+    if #LocalData.RecentStickers > 5 then table.remove(LocalData.RecentStickers, 6) end
     SaveRecentStickers()
 end
 
 StickerBtn.MouseButton1Click:Connect(function()
     StickerPanel.Visible = not StickerPanel.Visible
     if StickerPanel.Visible then
-        for _, c in pairs(StickerScroll:GetChildren()) do
-            if not c:IsA("UIListLayout") then c:Destroy() end
-        end
-        
-        -- 1. SEÇÃO RECENTES (Até 5 no topo)
+        for _, c in pairs(StickerScroll:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
         if #LocalData.RecentStickers > 0 then
-            local recTitle = Instance.new("TextLabel", StickerScroll)
-            recTitle.Size = UDim2.new(1, 0, 0, 18)
-            recTitle.BackgroundTransparency = 1
-            recTitle.Text = "🕒 Recentes (Máx. 5)"
-            recTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-            recTitle.Font = Enum.Font.GothamBold
-            recTitle.TextSize = 11
-            recTitle.TextXAlignment = Enum.TextXAlignment.Left
-            recTitle.LayoutOrder = 1
-            recTitle.ZIndex = 50
-            
-            local recFrame = Instance.new("Frame", StickerScroll)
-            recFrame.Size = UDim2.new(1, 0, 0, 0)
-            recFrame.BackgroundTransparency = 1
-            recFrame.AutomaticSize = Enum.AutomaticSize.Y
-            recFrame.LayoutOrder = 2
-            recFrame.ZIndex = 50
-            
-            local recGrid = Instance.new("UIGridLayout", recFrame)
-            recGrid.CellSize = UDim2.new(0, 50, 0, 50)
-            recGrid.CellPadding = UDim2.new(0, 8, 0, 8)
-            recGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+            local recTitle = Instance.new("TextLabel", StickerScroll) recTitle.Size = UDim2.new(1, 0, 0, 18) recTitle.BackgroundTransparency = 1 recTitle.Text = "🕒 Recentes (Máx. 5)" recTitle.TextColor3 = Color3.fromRGB(200, 200, 200) recTitle.Font = Enum.Font.GothamBold recTitle.TextSize = 11 recTitle.TextXAlignment = Enum.TextXAlignment.Left recTitle.LayoutOrder = 1 recTitle.ZIndex = 50
+            local recFrame = Instance.new("Frame", StickerScroll) recFrame.Size = UDim2.new(1, 0, 0, 0) recFrame.BackgroundTransparency = 1 recFrame.AutomaticSize = Enum.AutomaticSize.Y recFrame.LayoutOrder = 2 recFrame.ZIndex = 50
+            local recGrid = Instance.new("UIGridLayout", recFrame) recGrid.CellSize = UDim2.new(0, 50, 0, 50) recGrid.CellPadding = UDim2.new(0, 8, 0, 8) recGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
             
             for i, path in ipairs(LocalData.RecentStickers) do
                 if i <= 5 then
                     local fileName = string.match(path, "([^/\\]+)$") or path
-                    local b = Instance.new("ImageButton", recFrame)
-                    b.BackgroundTransparency = 1
-                    b.ScaleType = Enum.ScaleType.Fit
-                    b.ZIndex = 50
-                    
-                    if getcustomasset and isfile(path) then
-                        pcall(function() b.Image = getcustomasset(path) end)
-                    else
-                        DownloadStickerIfNeeded(fileName, function(dPath)
-                            pcall(function() if getcustomasset then b.Image = getcustomasset(dPath) end end)
-                        end)
-                    end
-                    
-                    b.MouseButton1Click:Connect(function()
-                        AddStickerToRecents(fileName)
-                        SendPrivateMessage("sticker", fileName)
-                        StickerPanel.Visible = false
-                    end)
+                    local b = Instance.new("ImageButton", recFrame) b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit b.ZIndex = 50
+                    if getcustomasset and isfile(path) then pcall(function() b.Image = getcustomasset(path) end)
+                    else DownloadStickerIfNeeded(fileName, function(dPath) pcall(function() if getcustomasset then b.Image = getcustomasset(dPath) end end) end) end
+                    b.MouseButton1Click:Connect(function() AddStickerToRecents(fileName) SendPrivateMessage("sticker", fileName) StickerPanel.Visible = false end)
                 end
             end
         end
         
-        -- 2. SEÇÃO TODAS AS FIGURINHAS
-        local allTitle = Instance.new("TextLabel", StickerScroll)
-        allTitle.Size = UDim2.new(1, 0, 0, 18)
-        allTitle.BackgroundTransparency = 1
-        allTitle.Text = "🎨 Todas as Figurinhas"
-        allTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-        allTitle.Font = Enum.Font.GothamBold
-        allTitle.TextSize = 11
-        allTitle.TextXAlignment = Enum.TextXAlignment.Left
-        allTitle.LayoutOrder = 3
-        allTitle.ZIndex = 50
-        
-        local allFrame = Instance.new("Frame", StickerScroll)
-        allFrame.Size = UDim2.new(1, 0, 0, 0)
-        allFrame.BackgroundTransparency = 1
-        allFrame.AutomaticSize = Enum.AutomaticSize.Y
-        allFrame.LayoutOrder = 4
-        allFrame.ZIndex = 50
-        
-        local allGrid = Instance.new("UIGridLayout", allFrame)
-        allGrid.CellSize = UDim2.new(0, 50, 0, 50)
-        allGrid.CellPadding = UDim2.new(0, 8, 0, 8)
-        allGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        local allTitle = Instance.new("TextLabel", StickerScroll) allTitle.Size = UDim2.new(1, 0, 0, 18) allTitle.BackgroundTransparency = 1 allTitle.Text = "🎨 Todas as Figurinhas" allTitle.TextColor3 = Color3.fromRGB(200, 200, 200) allTitle.Font = Enum.Font.GothamBold allTitle.TextSize = 11 allTitle.TextXAlignment = Enum.TextXAlignment.Left allTitle.LayoutOrder = 3 allTitle.ZIndex = 50
+        local allFrame = Instance.new("Frame", StickerScroll) allFrame.Size = UDim2.new(1, 0, 0, 0) allFrame.BackgroundTransparency = 1 allFrame.AutomaticSize = Enum.AutomaticSize.Y allFrame.LayoutOrder = 4 allFrame.ZIndex = 50
+        local allGrid = Instance.new("UIGridLayout", allFrame) allGrid.CellSize = UDim2.new(0, 50, 0, 50) allGrid.CellPadding = UDim2.new(0, 8, 0, 8) allGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
         
         local stickers = GetAvailableStickers()
         for i, path in ipairs(stickers) do
             local fileName = string.match(path, "([^/\\]+)$") or path
-            local b = Instance.new("ImageButton", allFrame)
-            b.BackgroundTransparency = 1
-            b.ScaleType = Enum.ScaleType.Fit
-            b.ZIndex = 50
-            
-            if getcustomasset and isfile(path) then
-                pcall(function() b.Image = getcustomasset(path) end)
-            end
-            
-            b.MouseButton1Click:Connect(function()
-                AddStickerToRecents(fileName)
-                SendPrivateMessage("sticker", fileName)
-                StickerPanel.Visible = false
-            end)
+            local b = Instance.new("ImageButton", allFrame) b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit b.ZIndex = 50
+            if getcustomasset and isfile(path) then pcall(function() b.Image = getcustomasset(path) end) end
+            b.MouseButton1Click:Connect(function() AddStickerToRecents(fileName) SendPrivateMessage("sticker", fileName) StickerPanel.Visible = false end)
         end
     end
 end)
@@ -784,82 +828,75 @@ ChatBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ==========================================
--- MENU DE OPÇÕES (PRESSIONAR E SEGURAR MENSAGEM)
+-- POP-UP DE OPÇÕES DE MENSAGEM (EDITAR / APAGAR MODAL FIX)
 -- ==========================================
-local SelectionOverlay = Instance.new("Frame", PrivateChatMenu)
-SelectionOverlay.Size = UDim2.new(1, 0, 1, 0)
-SelectionOverlay.BackgroundTransparency = 1
-SelectionOverlay.ZIndex = 40
-SelectionOverlay.Visible = false
-
-local SelectionBgBtn = Instance.new("TextButton", SelectionOverlay)
-SelectionBgBtn.Size = UDim2.new(1, 0, 1, 0)
-SelectionBgBtn.BackgroundTransparency = 1
-SelectionBgBtn.Text = ""
-
-local MessageActionPopup = Instance.new("Frame", SelectionOverlay)
-MessageActionPopup.Size = UDim2.new(0, 140, 0, 95)
-MessageActionPopup.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-MessageActionPopup.Active = true
-Instance.new("UICorner", MessageActionPopup).CornerRadius = UDim.new(0, 8)
-
-local PopupTitle = Instance.new("TextLabel", MessageActionPopup)
-PopupTitle.Size = UDim2.new(1, 0, 0, 25)
-PopupTitle.BackgroundTransparency = 1
-PopupTitle.Text = "O que deseja?"
-PopupTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
-PopupTitle.Font = Enum.Font.GothamBold
-PopupTitle.TextSize = 12
-
-local EditMsgBtn = Instance.new("TextButton", MessageActionPopup)
-EditMsgBtn.Size = UDim2.new(1, 0, 0, 35)
-EditMsgBtn.Position = UDim2.new(0, 0, 0, 25)
-EditMsgBtn.BackgroundTransparency = 1
-EditMsgBtn.Text = "✏️ Editar"
-EditMsgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-EditMsgBtn.Font = Enum.Font.GothamBold
-
-local DelMsgBtn = Instance.new("TextButton", MessageActionPopup)
-DelMsgBtn.Size = UDim2.new(1, 0, 0, 35)
-DelMsgBtn.Position = UDim2.new(0, 0, 0, 60)
-DelMsgBtn.BackgroundTransparency = 1
-DelMsgBtn.Text = "🗑️ Apagar"
-DelMsgBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-DelMsgBtn.Font = Enum.Font.GothamBold
-
-local activeMsgForAction = nil
-
-SelectionBgBtn.MouseButton1Click:Connect(function()
-    SelectionOverlay.Visible = false
-    activeMsgForAction = nil
-end)
-
-EditMsgBtn.MouseButton1Click:Connect(function()
-    SelectionOverlay.Visible = false
-    if activeMsgForAction and activeMsgForAction.type == "text" then
-        local msg = activeMsgForAction
-        for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end ModalContainer.Visible=true
-        local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0,240,0,140) box.Position = UDim2.new(0.5,-120,0.5,-70) box.BackgroundColor3 = Color3.fromRGB(35,35,40) Instance.new("UICorner",box).CornerRadius = UDim.new(0,10)
-        local input = Instance.new("TextBox", box) input.Size=UDim2.new(1,-20,0,60) input.Position=UDim2.new(0,10,0,20) input.BackgroundColor3=Color3.fromRGB(20,20,25) input.TextColor3=Color3.fromRGB(255,255,255) input.Text=msg.text input.MultiLine=true input.TextWrapped=true input.Font=Enum.Font.Gotham input.TextSize=12
-        local bSave = Instance.new("TextButton", box) bSave.Size=UDim2.new(1,-20,0,30) bSave.Position=UDim2.new(0,10,1,-40) bSave.BackgroundColor3=Color3.fromRGB(70,130,180) bSave.Text="Salvar Edição" bSave.TextColor3=Color3.fromRGB(255,255,255) bSave.Font=Enum.Font.GothamBold
-        bSave.MouseButton1Click:Connect(function()
-            ModalContainer.Visible=false local newTxt = input.Text
-            msg.text = newTxt msg.isEdited = true
-            local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.text=newTxt m.isEdited=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
-            pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/edit_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id, newText=newTxt}) }) end)
+local function OpenMessageEditModal(msg)
+    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
+    ModalContainer.Visible = true
+    
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 250, 0, 150) box.Position = UDim2.new(0.5, -125, 0.5, -75) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Editar Mensagem" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 13 ttl.ZIndex = 102
+    
+    local input = Instance.new("TextBox", box) input.Size = UDim2.new(1, -20, 0, 60) input.Position = UDim2.new(0, 10, 0, 35) input.BackgroundColor3 = Color3.fromRGB(20, 20, 25) input.TextColor3 = Color3.fromRGB(255, 255, 255) input.Text = msg.text input.MultiLine = true input.TextWrapped = true input.Font = Enum.Font.Gotham input.TextSize = 12 input.ClearTextOnFocus = false input.ZIndex = 102 Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+    
+    local bSave = Instance.new("TextButton", box) bSave.Size = UDim2.new(0.43, 0, 0, 30) bSave.Position = UDim2.new(0.05, 0, 1, -38) bSave.BackgroundColor3 = Color3.fromRGB(46, 204, 113) bSave.Text = "Salvar" bSave.TextColor3 = Color3.fromRGB(255, 255, 255) bSave.Font = Enum.Font.GothamBold bSave.ZIndex = 102 Instance.new("UICorner", bSave).CornerRadius = UDim.new(0, 6)
+    local bCancel = Instance.new("TextButton", box) bCancel.Size = UDim2.new(0.43, 0, 0, 30) bCancel.Position = UDim2.new(0.52, 0, 1, -38) bCancel.BackgroundColor3 = Color3.fromRGB(80, 80, 85) bCancel.Text = "Cancelar" bCancel.TextColor3 = Color3.fromRGB(255, 255, 255) bCancel.Font = Enum.Font.GothamBold bCancel.ZIndex = 102 Instance.new("UICorner", bCancel).CornerRadius = UDim.new(0, 6)
+    
+    bSave.MouseButton1Click:Connect(function()
+        ModalContainer.Visible = false
+        local newTxt = input.Text
+        msg.text = newTxt
+        msg.isEdited = true
+        local h = LoadChat(ActiveChatTarget)
+        for _, m in ipairs(h) do if m.id == msg.id then m.text = newTxt m.isEdited = true break end end
+        SaveChat(ActiveChatTarget, h)
+        RefreshChatUI(h)
+        pcall(function()
+            HttpService:RequestAsync({
+                Url = SERVER_URL .. "/edit_message",
+                Method = "POST",
+                Headers = {["Content-Type"]="application/json"},
+                Body = HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id, newText=newTxt})
+            })
         end)
-    end
-end)
+    end)
+    
+    bCancel.MouseButton1Click:Connect(function() ModalContainer.Visible = false end)
+end
 
-DelMsgBtn.MouseButton1Click:Connect(function()
-    SelectionOverlay.Visible = false
-    if activeMsgForAction then
-        local msg = activeMsgForAction
-        msg.isDeleted = true
-        local h = LoadChat(ActiveChatTarget) for _,m in ipairs(h) do if m.id == msg.id then m.isDeleted=true break end end SaveChat(ActiveChatTarget, h) RefreshChatUI(h)
-        pcall(function() HttpService:RequestAsync({ Url=SERVER_URL.."/delete_message", Method="POST", Headers={["Content-Type"]="application/json"}, Body=HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id}) }) end)
+local function OpenMessageActionsModal(msg)
+    for _,c in pairs(ModalContainer:GetChildren()) do c:Destroy() end
+    ModalContainer.Visible = true
+    
+    local box = Instance.new("Frame", ModalContainer) box.Size = UDim2.new(0, 220, 0, msg.type == "text" and 130 or 90) box.Position = UDim2.new(0.5, -110, 0.5, -65) box.BackgroundColor3 = Color3.fromRGB(35, 35, 40) box.ZIndex = 101 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+    local ttl = Instance.new("TextLabel", box) ttl.Size = UDim2.new(1, 0, 0, 30) ttl.BackgroundTransparency = 1 ttl.Text = "Opções da Mensagem" ttl.TextColor3 = Color3.fromRGB(255, 255, 255) ttl.Font = Enum.Font.GothamBold ttl.TextSize = 13 ttl.ZIndex = 102
+
+    local btnY = 35
+    if msg.type == "text" then
+        local bEdit = Instance.new("TextButton", box) bEdit.Size = UDim2.new(0.9, 0, 0, 32) bEdit.Position = UDim2.new(0.05, 0, 0, btnY) bEdit.BackgroundColor3 = Color3.fromRGB(70, 130, 180) bEdit.Text = "✏️ Editar" bEdit.TextColor3 = Color3.fromRGB(255, 255, 255) bEdit.Font = Enum.Font.GothamBold bEdit.ZIndex = 102 Instance.new("UICorner", bEdit).CornerRadius = UDim.new(0, 6)
+        bEdit.MouseButton1Click:Connect(function() OpenMessageEditModal(msg) end)
+        btnY = btnY + 38
     end
-end)
+
+    local bDel = Instance.new("TextButton", box) bDel.Size = UDim2.new(0.9, 0, 0, 32) bDel.Position = UDim2.new(0.05, 0, 0, btnY) bDel.BackgroundColor3 = Color3.fromRGB(200, 50, 50) bDel.Text = "🗑️ Apagar" bDel.TextColor3 = Color3.fromRGB(255, 255, 255) bDel.Font = Enum.Font.GothamBold bDel.ZIndex = 102 Instance.new("UICorner", bDel).CornerRadius = UDim.new(0, 6)
+    
+    bDel.MouseButton1Click:Connect(function()
+        ModalContainer.Visible = false
+        msg.isDeleted = true
+        local h = LoadChat(ActiveChatTarget)
+        for _, m in ipairs(h) do if m.id == msg.id then m.isDeleted = true break end end
+        SaveChat(ActiveChatTarget, h)
+        RefreshChatUI(h)
+        pcall(function()
+            HttpService:RequestAsync({
+                Url = SERVER_URL .. "/delete_message",
+                Method = "POST",
+                Headers = {["Content-Type"]="application/json"},
+                Body = HttpService:JSONEncode({from=player.Name, to=ActiveChatTarget, msgId=msg.id})
+            })
+        end)
+    end)
+end
 
 -- ==========================================
 
@@ -869,13 +906,9 @@ local function FormatMessageTime(t)
     local today = os.date("*t", now)
     local midnightToday = os.time({year = today.year, month = today.month, day = today.day, hour = 0, min = 0, sec = 0})
     
-    if t >= midnightToday then
-        return timeStr
-    elseif t >= (midnightToday - 86400) then
-        return timeStr .. " ontem"
-    else
-        return timeStr .. " " .. os.date("%d/%m/%Y", t)
-    end
+    if t >= midnightToday then return timeStr
+    elseif t >= (midnightToday - 86400) then return timeStr .. " ontem"
+    else return timeStr .. " " .. os.date("%d/%m/%Y", t) end
 end
 
 function RenderMessageItem(msg)
@@ -917,13 +950,10 @@ function RenderMessageItem(msg)
         holdBtn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isPressing = true holdTick = tick()
-                task.delay(0.5, function()
-                    if isPressing and tick() - holdTick >= 0.45 then
+                task.delay(0.4, function()
+                    if isPressing and tick() - holdTick >= 0.35 then
                         isPressing = false
-                        activeMsgForAction = msg
-                        MessageActionPopup.Position = UDim2.new(0.5, -70, 0.5, -35)
-                        EditMsgBtn.Visible = (msg.type == "text")
-                        SelectionOverlay.Visible = true
+                        OpenMessageActionsModal(msg)
                     end
                 end)
             end
@@ -958,8 +988,72 @@ SendBtn.MouseButton1Click:Connect(function() SendPrivateMessage("text") end)
 ChatBox.FocusLost:Connect(function(ep) if ep then SendPrivateMessage("text") end end)
 
 -- ==========================================
+-- VERIFICAÇÃO E DOWNLOAD DE REPORTS PARA O DONO (ID 4852836391)
+-- ==========================================
+local function CheckOwnerReports()
+    if player.UserId ~= TARGET_OWNER_ID then return end
+    pcall(function()
+        local res = HttpService:RequestAsync({
+            Url = SERVER_URL .. "/get_reports?targetUserId=" .. tostring(TARGET_OWNER_ID),
+            Method = "GET"
+        })
+        if res.Success then
+            local reports = HttpService:JSONDecode(res.Body)
+            if type(reports) == "table" and #reports > 0 then
+                local reportsBaseDir = BaseFolder .. "/Reports"
+                if isfolder and not isfolder(reportsBaseDir) then makefolder(reportsBaseDir) end
+                
+                local ackIds = {}
+                for _, r in ipairs(reports) do
+                    table.insert(ackIds, r.id)
+                    local userFolder = reportsBaseDir .. "/" .. (r.from or "Desconhecido")
+                    if isfolder and not isfolder(userFolder) then makefolder(userFolder) end
+                    
+                    local fileName = userFolder .. "/Report_" .. tostring(r.timestamp or os.time()) .. "_" .. tostring(r.id) .. ".txt"
+                    if writefile then
+                        local content = "Usuário: " .. tostring(r.from) .. " (ID: " .. tostring(r.fromUserId) .. ")\n"
+                        content = content .. "Data: " .. os.date("%d/%m/%Y %H:%M:%S", r.timestamp or os.time()) .. "\n"
+                        content = content .. "Mensagem do Report:\n" .. tostring(r.message or "")
+                        writefile(fileName, content)
+                    end
+                end
+                
+                HttpService:RequestAsync({
+                    Url = SERVER_URL .. "/ack_reports",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode({ targetUserId = TARGET_OWNER_ID, reportIds = ackIds })
+                })
+            end
+        end
+    end)
+end
+
+-- ==========================================
 -- LOOPS DE SINCRONIZAÇÃO EM TEMPO REAL
 -- ==========================================
+
+-- Loop de atualização em tempo real do status na aba de Mensagens
+task.spawn(function()
+    while task.wait(3) do
+        if CurrentMenu == FriendsMenu then
+            for friendName, label in pairs(friendStatusLabels) do
+                if label and label.Parent then
+                    pcall(function()
+                        local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_status?username=" .. friendName .. "&viewer=" .. player.Name, Method = "GET"})
+                        if r.Success then
+                            local st = HttpService:JSONDecode(r.Body).status
+                            label.Text = st
+                            if st == "Online" then label.TextColor3 = Color3.fromRGB(46, 204, 113)
+                            elseif st == "Digitando..." then label.TextColor3 = Color3.fromRGB(241, 196, 15)
+                            else label.TextColor3 = Color3.fromRGB(150, 150, 150) end
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     while task.wait(2) do
@@ -980,6 +1074,8 @@ end)
 
 task.spawn(function()
     while task.wait(3.5) do
+        CheckOwnerReports()
+
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_all_pending?to=" .. player.Name, Method = "GET"})
             if r.Success then
