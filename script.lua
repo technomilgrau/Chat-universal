@@ -1,5 +1,5 @@
 -- ==========================================
--- CHAT-UNIVERSAL V6 (Fila Offline, Edição, Stickers Fix e Bio Fix)
+-- CHAT-UNIVERSAL V6.1 (Stickers Fix & Fila Offline Sincronizada)
 -- Autor: techno_milgrau
 -- ==========================================
 
@@ -36,7 +36,7 @@ end
 local function LoadFriends()
     pcall(function()
         if isfile and isfile(FriendsFile) then
-            local decoded = HttpService:JSONDecode(readfile(FriendsFile))
+            local decoded = HttpService:JSONEncode(readfile(FriendsFile))
             if decoded then LocalData.Friends = decoded end
         end
     end)
@@ -79,19 +79,39 @@ local function GenerateMsgId()
 end
 
 -- ==========================================
--- GITHUB STICKER FETCHER
+-- GITHUB STICKER FETCHER & DOWNLOADER
 -- ==========================================
+local function DownloadStickerIfNeeded(filename, callback)
+    local filePath = StickersFolder .. "/" .. filename
+    if isfile and isfile(filePath) then
+        if callback then callback(filePath) end
+        return
+    end
+    task.spawn(function()
+        pcall(function()
+            local url = "https://raw.githubusercontent.com/technomilgrau/Chat-universal/main/Stickers/" .. filename
+            local imgRes = HttpService:RequestAsync({Url = url, Method = "GET"})
+            if imgRes.Success and writefile then
+                writefile(filePath, imgRes.Body)
+                if callback then callback(filePath) end
+            end
+        end)
+    end)
+end
+
 task.spawn(function()
     local success, res = pcall(function()
         return HttpService:RequestAsync({Url = "https://api.github.com/repos/technomilgrau/Chat-universal/contents/Stickers", Method = "GET"})
     end)
     if success and res.Success then
         local files = HttpService:JSONDecode(res.Body)
-        for _, file in ipairs(files) do
-            if file.type == "file" and (string.match(file.name:lower(), "%.png$") or string.match(file.name:lower(), "%.jpg$") or string.match(file.name:lower(), "%.jpeg$")) then
-                if not isfile(StickersFolder .. "/" .. file.name) then
-                    local imgRes = HttpService:RequestAsync({Url = file.download_url, Method = "GET"})
-                    if imgRes.Success then writefile(StickersFolder .. "/" .. file.name, imgRes.Body) end
+        if type(files) == "table" then
+            for _, file in ipairs(files) do
+                if file.type == "file" and (string.match(file.name:lower(), "%.png$") or string.match(file.name:lower(), "%.jpg$") or string.match(file.name:lower(), "%.jpeg$")) then
+                    if isfile and not isfile(StickersFolder .. "/" .. file.name) then
+                        local imgRes = HttpService:RequestAsync({Url = file.download_url, Method = "GET"})
+                        if imgRes.Success and writefile then writefile(StickersFolder .. "/" .. file.name, imgRes.Body) end
+                    end
                 end
             end
         end
@@ -104,7 +124,9 @@ local function GetAvailableStickers()
         pcall(function()
             local files = listfiles(StickersFolder)
             for _, path in ipairs(files) do
-                if string.match(path:lower(), "%.png$") or string.match(path:lower(), "%.jpg$") or string.match(path:lower(), "%.jpeg$") then table.insert(stickers, path) end
+                if string.match(path:lower(), "%.png$") or string.match(path:lower(), "%.jpg$") or string.match(path:lower(), "%.jpeg$") then
+                    table.insert(stickers, path)
+                end
             end
         end)
     end
@@ -112,7 +134,7 @@ local function GetAvailableStickers()
 end
 
 -- ==========================================
--- REGISTRO AUTOMÁTICO
+-- REGISTRO AUTOMÁTICO E PRESENÇA
 -- ==========================================
 task.spawn(function()
     pcall(function()
@@ -124,7 +146,6 @@ task.spawn(function()
     end)
 end)
 
--- Heartbeat dinâmico para presença
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
@@ -373,7 +394,6 @@ function OpenProfileUI(targetUsername)
                 end
             end
             
-            -- Garantir que a conexão da Bio seja refeita e segura
             if ProfBioConnection then ProfBioConnection:Disconnect() end
             ProfBioConnection = ProfBio.MouseButton1Click:Connect(function()
                 if ViewingProfileUsername == player.Name then
@@ -539,7 +559,7 @@ function LoadFriendsUI()
 end
 
 -- ==========================================
--- ABA 4: CHAT PRIVADO & FIGURINHAS
+-- ABA 4: CHAT PRIVADO & SISTEMA DE FIGURINHAS
 -- ==========================================
 local ChatScroll = Instance.new("ScrollingFrame", PrivateChatMenu) ChatScroll.Size = UDim2.new(1, -20, 1, -100) ChatScroll.Position = UDim2.new(0, 10, 0, 45) ChatScroll.BackgroundTransparency = 1 ChatScroll.ScrollBarThickness = 4
 local ChatLayout = Instance.new("UIListLayout", ChatScroll) ChatLayout.Padding = UDim.new(0, 8)
@@ -550,38 +570,138 @@ local ChatBox = Instance.new("TextBox", ChatInputFrame) ChatBox.Size = UDim2.new
 local StickerBtn = Instance.new("TextButton", ChatInputFrame) StickerBtn.Size = UDim2.new(0, 30, 1, 0) StickerBtn.Position = UDim2.new(1, -95, 0, 0) StickerBtn.BackgroundTransparency=1 StickerBtn.Text = "🙂" StickerBtn.TextSize = 18
 local SendBtn = Instance.new("TextButton", ChatInputFrame) SendBtn.Size = UDim2.new(0, 60, 1, 0) SendBtn.Position = UDim2.new(1, -60, 0, 0) SendBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 180) SendBtn.Text = "Enviar" SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255) SendBtn.Font = Enum.Font.GothamBold SendBtn.TextSize = 12 Instance.new("UICorner", SendBtn).CornerRadius = UDim.new(0, 6)
 
--- Painel de Figurinhas (Grid horizontal do TikTok)
-local StickerPanel = Instance.new("ScrollingFrame", PrivateChatMenu) StickerPanel.Size = UDim2.new(1,0,0,240) StickerPanel.Position = UDim2.new(0,0,1,-290) StickerPanel.BackgroundColor3 = Color3.fromRGB(30,30,35) StickerPanel.Visible = false StickerPanel.ZIndex = 20 StickerPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y StickerPanel.ScrollingDirection = Enum.ScrollingDirection.Y StickerPanel.ScrollBarThickness = 4
-local StickerGrid = Instance.new("UIGridLayout", StickerPanel) StickerGrid.CellSize = UDim2.new(0,70,0,70) StickerGrid.CellPadding = UDim2.new(0,12,0,12) StickerGrid.SortOrder = Enum.SortOrder.LayoutOrder StickerGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+-- Painel de Figurinhas
+local StickerPanel = Instance.new("Frame", PrivateChatMenu)
+StickerPanel.Size = UDim2.new(1, -20, 0, 230)
+StickerPanel.Position = UDim2.new(0, 10, 1, -280)
+StickerPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+StickerPanel.BorderSizePixel = 0
+StickerPanel.Visible = false
+StickerPanel.ZIndex = 30
+Instance.new("UICorner", StickerPanel).CornerRadius = UDim.new(0, 8)
+
+local StickerScroll = Instance.new("ScrollingFrame", StickerPanel)
+StickerScroll.Size = UDim2.new(1, -10, 1, -10)
+StickerScroll.Position = UDim2.new(0, 5, 0, 5)
+StickerScroll.BackgroundTransparency = 1
+StickerScroll.ScrollBarThickness = 4
+StickerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+StickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local StickerScrollLayout = Instance.new("UIListLayout", StickerScroll)
+StickerScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+StickerScrollLayout.Padding = UDim.new(0, 10)
+
+local function AddStickerToRecents(fileNameOrPath)
+    local fileName = string.match(fileNameOrPath, "([^/\\]+)$") or fileNameOrPath
+    local fullPath = StickersFolder .. "/" .. fileName
+    
+    for i = #LocalData.RecentStickers, 1, -1 do
+        local rec = LocalData.RecentStickers[i]
+        if string.match(rec, "([^/\\]+)$") == fileName then
+            table.remove(LocalData.RecentStickers, i)
+        end
+    end
+    
+    table.insert(LocalData.RecentStickers, 1, fullPath)
+    if #LocalData.RecentStickers > 5 then
+        table.remove(LocalData.RecentStickers, 6)
+    end
+    SaveRecentStickers()
+end
 
 StickerBtn.MouseButton1Click:Connect(function()
     StickerPanel.Visible = not StickerPanel.Visible
     if StickerPanel.Visible then
-        for _,c in pairs(StickerPanel:GetChildren()) do if c:IsA("ImageButton") then c:Destroy() end end
-        local stickers = GetAvailableStickers()
-        
-        for i = #LocalData.RecentStickers, 1, -1 do
-            local path = LocalData.RecentStickers[i]
-            pcall(function()
-                local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = -i b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit
-                if getcustomasset then b.Image = getcustomasset(path) end
-                b.MouseButton1Click:Connect(function() SendPrivateMessage("sticker", string.match(path, "([^/\\]+)$")) StickerPanel.Visible = false end)
-            end)
+        for _, c in pairs(StickerScroll:GetChildren()) do
+            if not c:IsA("UIListLayout") then c:Destroy() end
         end
-        for i, path in ipairs(stickers) do
-            if not table.find(LocalData.RecentStickers, path) then
-                pcall(function()
-                    local b = Instance.new("ImageButton", StickerPanel) b.LayoutOrder = i b.BackgroundTransparency = 1 b.ScaleType = Enum.ScaleType.Fit
-                    if getcustomasset then b.Image = getcustomasset(path) end
+        
+        -- 1. SEÇÃO RECENTES (Até 5 no topo)
+        if #LocalData.RecentStickers > 0 then
+            local recTitle = Instance.new("TextLabel", StickerScroll)
+            recTitle.Size = UDim2.new(1, 0, 0, 18)
+            recTitle.BackgroundTransparency = 1
+            recTitle.Text = "🕒 Recentes (Máx. 5)"
+            recTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+            recTitle.Font = Enum.Font.GothamBold
+            recTitle.TextSize = 11
+            recTitle.TextXAlignment = Enum.TextXAlignment.Left
+            recTitle.LayoutOrder = 1
+            
+            local recFrame = Instance.new("Frame", StickerScroll)
+            recFrame.Size = UDim2.new(1, 0, 0, 0)
+            recFrame.BackgroundTransparency = 1
+            recFrame.AutomaticSize = Enum.AutomaticSize.Y
+            recFrame.LayoutOrder = 2
+            
+            local recGrid = Instance.new("UIGridLayout", recFrame)
+            recGrid.CellSize = UDim2.new(0, 50, 0, 50)
+            recGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+            recGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+            
+            for i, path in ipairs(LocalData.RecentStickers) do
+                if i <= 5 then
+                    local fileName = string.match(path, "([^/\\]+)$") or path
+                    local b = Instance.new("ImageButton", recFrame)
+                    b.BackgroundTransparency = 1
+                    b.ScaleType = Enum.ScaleType.Fit
+                    
+                    if getcustomasset and isfile(path) then
+                        pcall(function() b.Image = getcustomasset(path) end)
+                    else
+                        DownloadStickerIfNeeded(fileName, function(dPath)
+                            pcall(function() if getcustomasset then b.Image = getcustomasset(dPath) end end)
+                        end)
+                    end
+                    
                     b.MouseButton1Click:Connect(function()
-                        table.insert(LocalData.RecentStickers, 1, path)
-                        if #LocalData.RecentStickers > 5 then table.remove(LocalData.RecentStickers, 6) end
-                        SaveRecentStickers()
-                        SendPrivateMessage("sticker", string.match(path, "([^/\\]+)$"))
+                        AddStickerToRecents(fileName)
+                        SendPrivateMessage("sticker", fileName)
                         StickerPanel.Visible = false
                     end)
-                end)
+                end
             end
+        end
+        
+        -- 2. SEÇÃO TODAS AS FIGURINHAS
+        local allTitle = Instance.new("TextLabel", StickerScroll)
+        allTitle.Size = UDim2.new(1, 0, 0, 18)
+        allTitle.BackgroundTransparency = 1
+        allTitle.Text = "🎨 Todas as Figurinhas"
+        allTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+        allTitle.Font = Enum.Font.GothamBold
+        allTitle.TextSize = 11
+        allTitle.TextXAlignment = Enum.TextXAlignment.Left
+        allTitle.LayoutOrder = 3
+        
+        local allFrame = Instance.new("Frame", StickerScroll)
+        allFrame.Size = UDim2.new(1, 0, 0, 0)
+        allFrame.BackgroundTransparency = 1
+        allFrame.AutomaticSize = Enum.AutomaticSize.Y
+        allFrame.LayoutOrder = 4
+        
+        local allGrid = Instance.new("UIGridLayout", allFrame)
+        allGrid.CellSize = UDim2.new(0, 50, 0, 50)
+        allGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+        allGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        
+        local stickers = GetAvailableStickers()
+        for i, path in ipairs(stickers) do
+            local fileName = string.match(path, "([^/\\]+)$") or path
+            local b = Instance.new("ImageButton", allFrame)
+            b.BackgroundTransparency = 1
+            b.ScaleType = Enum.ScaleType.Fit
+            
+            if getcustomasset and isfile(path) then
+                pcall(function() b.Image = getcustomasset(path) end)
+            end
+            
+            b.MouseButton1Click:Connect(function()
+                AddStickerToRecents(fileName)
+                SendPrivateMessage("sticker", fileName)
+                StickerPanel.Visible = false
+            end)
         end
     end
 end)
@@ -617,7 +737,7 @@ SelectionBgBtn.Text = ""
 local MessageActionPopup = Instance.new("Frame", SelectionOverlay)
 MessageActionPopup.Size = UDim2.new(0, 140, 0, 70)
 MessageActionPopup.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-MessageActionPopup.Active = true -- Bloqueia cliques no fundo
+MessageActionPopup.Active = true
 Instance.new("UICorner", MessageActionPopup).CornerRadius = UDim.new(0, 8)
 
 local EditMsgBtn = Instance.new("TextButton", MessageActionPopup)
@@ -685,9 +805,16 @@ function RenderMessageItem(msg)
     if msg.isDeleted then
         local body = Instance.new("TextLabel", msgFrame) body.Size = UDim2.new(1, -42, 0, 20) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(150,150,150) body.Text = "🚫 Mensagem apagada"
     elseif msg.type == "sticker" then
-        local img = Instance.new("ImageLabel", msgFrame) img.Size = UDim2.new(0, 100, 0, 100) img.Position = UDim2.new(0, 40, 0, 18) img.BackgroundTransparency = 1 img.ScaleType = Enum.ScaleType.Fit
-        pcall(function() if getcustomasset then img.Image = getcustomasset(StickersFolder .. "/" .. msg.text) end end)
-        contentHeight = 100
+        local img = Instance.new("ImageLabel", msgFrame) img.Size = UDim2.new(0, 95, 0, 95) img.Position = UDim2.new(0, 40, 0, 18) img.BackgroundTransparency = 1 img.ScaleType = Enum.ScaleType.Fit
+        local path = StickersFolder .. "/" .. msg.text
+        if isfile and isfile(path) then
+            pcall(function() if getcustomasset then img.Image = getcustomasset(path) end end)
+        else
+            DownloadStickerIfNeeded(msg.text, function(dPath)
+                pcall(function() if getcustomasset then img.Image = getcustomasset(dPath) end end)
+            end)
+        end
+        contentHeight = 95
     else
         local body = Instance.new("TextLabel", msgFrame) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.TextYAlignment = Enum.TextYAlignment.Top body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(220, 220, 220) body.TextWrapped = true body.RichText = true
         body.Text = msg.text .. (msg.isEdited and " <font color=\"rgb(150,150,150)\">editado</font>" or "")
@@ -749,7 +876,6 @@ ChatBox.FocusLost:Connect(function(ep) if ep then SendPrivateMessage("text") end
 -- LOOPS DE SINCRONIZAÇÃO EM TEMPO REAL
 -- ==========================================
 
--- Loop Local (Digitação e Presença)
 task.spawn(function()
     while task.wait(2) do
         if ActiveChatTarget ~= "" then
@@ -767,10 +893,8 @@ task.spawn(function()
     end
 end)
 
--- Loop Global (Fila Offline Perfeita + Amizades)
 task.spawn(function()
     while task.wait(3.5) do
-        -- Busca TODOS OS PENDENTES para sua conta (Fila Temporária -> Histórico Local)
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_all_pending?to=" .. player.Name, Method = "GET"})
             if r.Success then
@@ -813,7 +937,6 @@ task.spawn(function()
                     end
                 end
 
-                -- Confirma (ACK) para o Render Apagar os eventos transportados
                 if hasUpdates then
                     HttpService:RequestAsync({
                         Url = SERVER_URL .. "/ack_all_pending", Method = "POST", Headers = {["Content-Type"]="application/json"},
@@ -823,7 +946,6 @@ task.spawn(function()
             end
         end)
 
-        -- Eventos Globais de Amigos e Sync Manual
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_global_events?username=" .. player.Name, Method = "GET"})
             if r.Success then
@@ -841,7 +963,6 @@ task.spawn(function()
             end
         end)
         
-        -- Recebimento de Sync Manual
         pcall(function()
             local r = HttpService:RequestAsync({Url = SERVER_URL .. "/get_sync?username=" .. player.Name, Method = "GET"})
             if r.Success then
