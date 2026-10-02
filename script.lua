@@ -36,10 +36,14 @@ end
 local function LoadFriends()
     pcall(function()
         if isfile and isfile(FriendsFile) then
-            -- CORREÇÃO: Mudei JSONEncode para JSONDecode
             local decoded = HttpService:JSONDecode(readfile(FriendsFile))
             if decoded and type(decoded) == "table" then 
-                LocalData.Friends = decoded 
+                local uniqueFriends = {}
+                local hash = {}
+                for _, v in ipairs(decoded) do
+                    if not hash[v] then hash[v] = true table.insert(uniqueFriends, v) end
+                end
+                LocalData.Friends = uniqueFriends 
             end
         end
     end)
@@ -349,10 +353,12 @@ local ProfDName = Instance.new("TextLabel", ProfileMenu) ProfDName.Size = UDim2.
 local ProfUName = Instance.new("TextLabel", ProfileMenu) ProfUName.Size = UDim2.new(1,0,0,15) ProfUName.Position = UDim2.new(0,0,0,170) ProfUName.BackgroundTransparency=1 ProfUName.TextColor3=Color3.fromRGB(150,150,150) ProfUName.Font=Enum.Font.Gotham ProfUName.TextSize=12
 local ProfStats = Instance.new("TextLabel", ProfileMenu) ProfStats.Size = UDim2.new(1,0,0,15) ProfStats.Position = UDim2.new(0,0,0,195) ProfStats.BackgroundTransparency=1 ProfStats.TextColor3=Color3.fromRGB(200,200,200) ProfStats.Font=Enum.Font.GothamBold ProfStats.TextSize=14
 local ProfBtn = Instance.new("TextButton", ProfileMenu) ProfBtn.Size = UDim2.new(0, 140, 0, 35) ProfBtn.Position = UDim2.new(0.5, -70, 0, 220) ProfBtn.Font = Enum.Font.GothamBold ProfBtn.TextSize = 14 ProfBtn.TextColor3 = Color3.fromRGB(255,255,255) Instance.new("UICorner", ProfBtn).CornerRadius = UDim.new(0,8)
-local ProfBio = Instance.new("TextButton", ProfileMenu) ProfBio.Size = UDim2.new(1, -40, 0, 60) ProfBio.Position = UDim2.new(0, 20, 0, 270) ProfBio.BackgroundTransparency=1 ProfBio.TextColor3=Color3.fromRGB(220,220,220) ProfBio.Font=Enum.Font.Gotham ProfBio.TextSize=12 ProfBio.TextWrapped=true ProfBio.TextYAlignment=Enum.TextYAlignment.Top
+local ProfUnfriendBtn = Instance.new("TextButton", ProfileMenu) ProfUnfriendBtn.Size = UDim2.new(0, 140, 0, 35) ProfUnfriendBtn.Position = UDim2.new(0.5, -70, 0, 260) ProfUnfriendBtn.Font = Enum.Font.GothamBold ProfUnfriendBtn.TextSize = 14 ProfUnfriendBtn.TextColor3 = Color3.fromRGB(255,100,100) ProfUnfriendBtn.BackgroundColor3 = Color3.fromRGB(50,50,55) ProfUnfriendBtn.Text = "Remover Amigo" Instance.new("UICorner", ProfUnfriendBtn).CornerRadius = UDim.new(0,8) ProfUnfriendBtn.Visible = false
+local ProfBio = Instance.new("TextButton", ProfileMenu) ProfBio.Size = UDim2.new(1, -40, 0, 60) ProfBio.Position = UDim2.new(0, 20, 0, 305) ProfBio.BackgroundTransparency=1 ProfBio.TextColor3=Color3.fromRGB(220,220,220) ProfBio.Font=Enum.Font.Gotham ProfBio.TextSize=12 ProfBio.TextWrapped=true ProfBio.TextYAlignment=Enum.TextYAlignment.Top
 
 local ViewingProfileUsername = ""
 local ProfBioConnection = nil
+local ProfUnfriendConnection = nil
 
 function OpenProfileUI(targetUsername)
     OpenMenu(ProfileMenu)
@@ -386,7 +392,19 @@ function OpenProfileUI(targetUsername)
                 if isFriend then
                     ProfBtn.Text = "Mensagem" ProfBtn.BackgroundColor3 = Color3.fromRGB(50,50,55)
                     ProfBtn.MouseButton1Click:Connect(function() OpenPrivateChat(data.username, data.displayName, data.userId) end)
+                    
+                    ProfUnfriendBtn.Visible = true
+                    if ProfUnfriendConnection then ProfUnfriendConnection:Disconnect() end
+                    ProfUnfriendConnection = ProfUnfriendBtn.MouseButton1Click:Connect(function()
+                        ShowPopup("Remover amigo?", "Deseja desfazer a amizade com " .. data.displayName .. "?", "Sim", "Não", function()
+                            pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/unfriend", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({user=player.Name, friend=data.username}) }) end)
+                            local idx = table.find(LocalData.Friends, data.username)
+                            if idx then table.remove(LocalData.Friends, idx) SaveFriends() end
+                            OpenProfileUI(targetUsername)
+                        end)
+                    end)
                 else
+                    ProfUnfriendBtn.Visible = false
                     ProfBtn.Text = "Adicionar" ProfBtn.BackgroundColor3 = Color3.fromRGB(233,30,99)
                     ProfBtn.MouseButton1Click:Connect(function()
                         if ProfBtn.Text == "Adicionar" then
@@ -547,6 +565,11 @@ function OpenPrivateChat(username, displayName, userId)
     ChatStatus.Text = "Carregando..."
     pcall(function() ChatAvatar.Image = "rbxthumb://type=AvatarHeadShot&id="..ActiveChatTargetId.."&w=150&h=150" end)
     OpenMenu(PrivateChatMenu) RefreshChatUI(LoadChat(username))
+    
+    -- Sincroniza mensagens perdidas automaticamente ao abrir
+    task.spawn(function()
+        pcall(function() HttpService:RequestAsync({ Url = SERVER_URL .. "/request_sync", Method = "POST", Headers = {["Content-Type"]="application/json"}, Body = HttpService:JSONEncode({from = player.Name, to = ActiveChatTarget}) }) end)
+    end)
 end
 
 function LoadFriendsUI()
@@ -743,21 +766,30 @@ SelectionBgBtn.BackgroundTransparency = 1
 SelectionBgBtn.Text = ""
 
 local MessageActionPopup = Instance.new("Frame", SelectionOverlay)
-MessageActionPopup.Size = UDim2.new(0, 140, 0, 70)
+MessageActionPopup.Size = UDim2.new(0, 140, 0, 95)
 MessageActionPopup.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 MessageActionPopup.Active = true
 Instance.new("UICorner", MessageActionPopup).CornerRadius = UDim.new(0, 8)
 
+local PopupTitle = Instance.new("TextLabel", MessageActionPopup)
+PopupTitle.Size = UDim2.new(1, 0, 0, 25)
+PopupTitle.BackgroundTransparency = 1
+PopupTitle.Text = "O que deseja?"
+PopupTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+PopupTitle.Font = Enum.Font.GothamBold
+PopupTitle.TextSize = 12
+
 local EditMsgBtn = Instance.new("TextButton", MessageActionPopup)
-EditMsgBtn.Size = UDim2.new(1, 0, 0.5, 0)
+EditMsgBtn.Size = UDim2.new(1, 0, 0, 35)
+EditMsgBtn.Position = UDim2.new(0, 0, 0, 25)
 EditMsgBtn.BackgroundTransparency = 1
 EditMsgBtn.Text = "✏️ Editar"
 EditMsgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 EditMsgBtn.Font = Enum.Font.GothamBold
 
 local DelMsgBtn = Instance.new("TextButton", MessageActionPopup)
-DelMsgBtn.Size = UDim2.new(1, 0, 0.5, 0)
-DelMsgBtn.Position = UDim2.new(0, 0, 0.5, 0)
+DelMsgBtn.Size = UDim2.new(1, 0, 0, 35)
+DelMsgBtn.Position = UDim2.new(0, 0, 0, 60)
 DelMsgBtn.BackgroundTransparency = 1
 DelMsgBtn.Text = "🗑️ Apagar"
 DelMsgBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -799,7 +831,20 @@ end)
 
 -- ==========================================
 
-local function FormatMessageTime(t) return os.date("%H:%M", t) end
+local function FormatMessageTime(t)
+    local now = os.time()
+    local timeStr = os.date("%H:%M", t)
+    local today = os.date("*t", now)
+    local midnightToday = os.time({year = today.year, month = today.month, day = today.day, hour = 0, min = 0, sec = 0})
+    
+    if t >= midnightToday then
+        return timeStr
+    elseif t >= (midnightToday - 86400) then
+        return timeStr .. " ontem"
+    else
+        return timeStr .. " " .. os.date("%d/%m/%Y", t)
+    end
+end
 
 function RenderMessageItem(msg)
     local msgFrame = Instance.new("Frame", ChatScroll) msgFrame.BackgroundTransparency = 1
@@ -811,7 +856,7 @@ function RenderMessageItem(msg)
     
     local contentHeight = 20
     if msg.isDeleted then
-        local body = Instance.new("TextLabel", msgFrame) body.Size = UDim2.new(1, -42, 0, 20) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(150,150,150) body.Text = "🚫 Mensagem apagada"
+        local body = Instance.new("TextLabel", msgFrame) body.Size = UDim2.new(1, -42, 0, 20) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(150,150,150) body.Text = "🚫 mensagem deletada"
     elseif msg.type == "sticker" then
         local img = Instance.new("ImageLabel", msgFrame) img.Size = UDim2.new(0, 95, 0, 95) img.Position = UDim2.new(0, 40, 0, 18) img.BackgroundTransparency = 1 img.ScaleType = Enum.ScaleType.Fit
         local path = StickersFolder .. "/" .. msg.text
@@ -825,7 +870,7 @@ function RenderMessageItem(msg)
         contentHeight = 95
     else
         local body = Instance.new("TextLabel", msgFrame) body.Position = UDim2.new(0, 40, 0, 18) body.BackgroundTransparency = 1 body.TextXAlignment = Enum.TextXAlignment.Left body.TextYAlignment = Enum.TextYAlignment.Top body.Font = Enum.Font.Gotham body.TextSize = 12 body.TextColor3 = Color3.fromRGB(220, 220, 220) body.TextWrapped = true body.RichText = true
-        body.Text = msg.text .. (msg.isEdited and " <font color=\"rgb(150,150,150)\">editado</font>" or "")
+        body.Text = msg.text .. (msg.isEdited and " <font size=\"10\" color=\"rgb(150,150,150)\">editado</font>" or "")
         local bounds = TextService:GetTextSize(body.Text, 12, Enum.Font.Gotham, Vector2.new(190, 10000))
         body.Size = UDim2.new(0, 190, 0, bounds.Y)
         contentHeight = bounds.Y
