@@ -12,7 +12,7 @@ local TextService = game:GetService("TextService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-local SERVER_URL = "https://chat-universal-gb22.onrender.com"
+local SERVER_URL = "https://chat-universal-server-js.onrender.com"
 local TARGET_OWNER_ID = 4852836391
 
 -- ==========================================
@@ -966,26 +966,43 @@ function RenderMessageItem(msg)
     end
     msgFrame.Size = UDim2.new(1, 0, 0, contentHeight + 22)
     
-    if msg.sender == player.Name and not msg.isDeleted then
+        if msg.sender == player.Name and not msg.isDeleted then
         local holdBtn = Instance.new("TextButton", msgFrame) holdBtn.Size = UDim2.new(1,0,1,0) holdBtn.BackgroundTransparency=1 holdBtn.Text="" holdBtn.ZIndex=5
         local isPressing = false
         local holdTick = 0
+        local startPos = Vector2.new(0, 0)
 
         holdBtn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isPressing = true holdTick = tick()
+                isPressing = true
+                holdTick = tick()
+                startPos = Vector2.new(input.Position.X, input.Position.Y)
+                
                 task.delay(0.4, function()
-                    if isPressing and tick() - holdTick >= 0.35 then
+                    if isPressing and (tick() - holdTick >= 0.35) then
                         isPressing = false
                         OpenMessageActionsModal(msg)
                     end
                 end)
             end
         end)
+
+        holdBtn.InputChanged:Connect(function(input)
+            if isPressing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+                if (currentPos - startPos).Magnitude > 10 then
+                    isPressing = false
+                end
+            end
+        end)
+
         holdBtn.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isPressing = false end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isPressing = false
+            end
         end)
     end
+
 end
 
 function RefreshChatUI(history)
