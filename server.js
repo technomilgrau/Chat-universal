@@ -6,13 +6,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Banco de dados local para armazenar na Render (evita perder offlines)
+// Banco de dados local armazenado no servidor
 const DB_FILE = './database.json';
-let db = { users: {}, friendRequests: {}, pendingMessages: {}, pendingEdits: {}, pendingDeletes: {} };
+let db = { users: {}, friendRequests: {}, pendingMessages: {}, pendingEdits: {}, pendingDeletes: {}, reports: {} };
 
 if (fs.existsSync(DB_FILE)) {
     try {
         db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        if (!db.reports) db.reports = {};
     } catch (e) {
         console.error("Erro ao carregar DB:", e);
     }
@@ -22,26 +23,25 @@ function saveDB() {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-// Armazenamento linkado ao DB
+// Armazenamento em memória linkado ao DB
 const users = db.users;          
 const friendRequests = db.friendRequests; 
 const pendingMessages = db.pendingMessages;
 const pendingEdits = db.pendingEdits;   
 const pendingDeletes = db.pendingDeletes; 
+const reports = db.reports;
 const typingStatus = {};   
 const globalEvents = {};   
 const syncData = {};       
-const chatHistory = {};    // Backup em memória
+const chatHistory = {};
 
 function getPairKey(u1, u2) {
     if (!u1 || !u2) return '';
     return [u1, u2].sort().join(':');
 }
 
-// Salvar a cada 10 segundos pra não perder nada de amigos ou filas offline
 setInterval(saveDB, 10000);
 
-// Rota raiz
 app.get('/', (req, res) => {
     res.send('Servidor Chat-Universal Online! 🚀');
 });
@@ -74,6 +74,45 @@ app.post('/heartbeat', (req, res) => {
     const { username } = req.body;
     if (username && users[username]) {
         users[username].lastSeen = Date.now();
+    }
+    res.json({ success: true });
+});
+
+// Enviar Report
+app.post('/send_report', (req, res) => {
+    const { from, fromUserId, targetUserId, message, timestamp } = req.body;
+    if (!targetUserId || !message) return res.status(400).json({ error: 'Parâmetros ausentes' });
+
+    const key = String(targetUserId);
+    if (!reports[key]) reports[key] = [];
+
+    const reportObj = {
+        id: Date.now().toString() + '_' + Math.floor(Math.random() * 10000),
+        from: from || 'Desconhecido',
+        fromUserId: fromUserId || 0,
+        message: message,
+        timestamp: timestamp || Math.floor(Date.now() / 1000)
+    };
+
+    reports[key].push(reportObj);
+    saveDB();
+    res.json({ success: true });
+});
+
+// Obter Reports Pendentes do Criador
+app.get('/get_reports', (req, res) => {
+    const { targetUserId } = req.query;
+    const key = String(targetUserId);
+    res.json(reports[key] || []);
+});
+
+// Confirmar Recebimento do Report
+app.post('/ack_reports', (req, res) => {
+    const { targetUserId, reportIds } = req.body;
+    const key = String(targetUserId);
+    if (reports[key] && Array.isArray(reportIds)) {
+        reports[key] = reports[key].filter(r => !reportIds.includes(r.id));
+        saveDB();
     }
     res.json({ success: true });
 });
@@ -153,7 +192,6 @@ app.post('/accept_request', (req, res) => {
         users[friend].friends.push(user);
     }
 
-    // Trava final pra nunca ter amigo duplicado nas listas
     if (users[user]) users[user].friends = [...new Set(users[user].friends)];
     if (users[friend]) users[friend].friends = [...new Set(users[friend].friends)];
 
@@ -211,7 +249,7 @@ app.post('/set_typing', (req, res) => {
     res.json({ success: true });
 });
 
-// Enviar Mensagem / Figurinha (Adiciona à Fila Offline Temporária)
+// Enviar Mensagem / Figurinha
 app.post('/send_message', (req, res) => {
     const { from, to, msg } = req.body;
     if (!to || !msg) return res.status(400).json({ error: 'Parâmetros ausentes' });
@@ -262,7 +300,7 @@ app.post('/delete_message', (req, res) => {
     res.json({ success: true });
 });
 
-// Obter Histórico do Servidor (Recuperação de mensagens)
+// Obter Histórico do Servidor
 app.get('/get_chat_history', (req, res) => {
     const { user1, user2 } = req.query;
     if (!user1 || !user2) return res.json([]);
@@ -270,7 +308,7 @@ app.get('/get_chat_history', (req, res) => {
     res.json(chatHistory[pairKey] || []);
 });
 
-// Obter Todos os Pendentes (Fila Offline)
+// Obter Todos os Pendentes
 app.get('/get_all_pending', (req, res) => {
     const { to } = req.query;
     res.json({
@@ -280,7 +318,7 @@ app.get('/get_all_pending', (req, res) => {
     });
 });
 
-// Confirmar Recebimento (Apaga da Render após Usuário Receber)
+// Confirmar Recebimento
 app.post('/ack_all_pending', (req, res) => {
     const { to, msgIds, editIds, deleteIds } = req.body;
 
