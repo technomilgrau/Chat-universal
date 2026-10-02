@@ -1,19 +1,39 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Armazenamento temporário em memória
-const users = {};          // username -> profile
-const friendRequests = {}; // username -> [ requests ]
-const typingStatus = {};   // key -> timestamp
-const pendingMessages = {};// username -> [ msgs ]
-const pendingEdits = {};   // username -> [ edits ]
-const pendingDeletes = {}; // username -> [ deletes ]
-const globalEvents = {};   // username -> [ events ]
-const syncData = {};       // username -> { friend: history }
+// Banco de dados local para armazenar na Render (evita perder offlines)
+const DB_FILE = './database.json';
+let db = { users: {}, friendRequests: {}, pendingMessages: {}, pendingEdits: {}, pendingDeletes: {} };
+
+if (fs.existsSync(DB_FILE)) {
+    try {
+        db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch (e) {
+        console.error("Erro ao carregar DB:", e);
+    }
+}
+
+function saveDB() {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+// Armazenamento linkado ao DB
+const users = db.users;          
+const friendRequests = db.friendRequests; 
+const pendingMessages = db.pendingMessages;
+const pendingEdits = db.pendingEdits;   
+const pendingDeletes = db.pendingDeletes; 
+const typingStatus = {};   
+const globalEvents = {};   
+const syncData = {};       
+
+// Salvar a cada 10 segundos pra não perder nada de amigos ou filas offline
+setInterval(saveDB, 10000);
 
 // Rota raiz
 app.get('/', (req, res) => {
@@ -127,9 +147,14 @@ app.post('/accept_request', (req, res) => {
         users[friend].friends.push(user);
     }
 
+    // Trava final pra nunca ter amigo duplicado nas listas
+    if (users[user]) users[user].friends = [...new Set(users[user].friends)];
+    if (users[friend]) users[friend].friends = [...new Set(users[friend].friends)];
+
     if (!globalEvents[friend]) globalEvents[friend] = [];
     globalEvents[friend].push({ type: 'friend_accept', username: user });
 
+    saveDB();
     res.json({ success: true });
 });
 
